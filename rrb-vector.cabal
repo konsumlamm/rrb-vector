@@ -1,0 +1,39 @@
+name:               rrb-vector
+version:            0.1.0.0
+-- synopsis:
+-- description:
+homepage:           https://github.com/konsumlamm/rbb-vector#readme
+license:            BSD3
+license-file:       LICENSE
+author:             konsumlamm
+maintainer:         konsumlamm@gmail.com
+copyright:          2020-2021 konsumlamm
+category:           Web
+build-type:         Simple
+extra-source-files: README.md
+cabal-version:      2.0
+
+library
+  hs-source-dirs:       src
+  exposed-modules:
+    Data.RRBVector
+  other-modules:
+    Util.Internal.Array
+    Util.Internal.Buffer
+    Util.Internal.IntRef
+  build-depends:        base >= 4.9 && < 5, deepseq ^>= 1.4.2, primitive ^>= 0.7.1
+  ghc-options:          -O2 -Wall -Wno-name-shadowing
+  default-language:     Haskell2010
+
+test-suite test
+  hs-source-dirs:       test
+  main-is:              Spec.hs
+  type:                 exitcode-stdio-1.0
+  ghc-options:          -Wall -Wno-orphans -Wno-type-defaults
+  build-depends:        base >= 4.9 && < 5, rrb-vector, hspec, QuickCheck
+  default-language:     Haskell2010
+  default-extensions:   ExtendedDefaultRules
+
+--source-repository head
+--  type:     git
+--  location: https://github.com/konsumlamm/rbb-vector
