@@ -44,6 +44,7 @@ module Data.RRBVector
     , empty, singleton, fromList
     -- * Indexing
     , lookup, index
+    , (!?), (!)
     , update
     , adjust
     -- * With Index
@@ -57,6 +58,7 @@ module Data.RRBVector
     , (<|), (|>), (><)
     , take, drop, splitAt
     , insertAt, deleteAt
+    , viewl, viewr
     ) where
 
 import Control.Applicative (Alternative)
@@ -74,6 +76,7 @@ import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromMaybe)
 import Data.List (intercalate)
 import qualified GHC.Exts as Exts
+import GHC.Stack (HasCallStack)
 import Text.Read
 import Prelude hiding (lookup, map, take, drop, splitAt, head, last, reverse)
 
@@ -395,8 +398,16 @@ lookup i (Root size sh tree)
     lookupTree i _ (Leaf arr) = A.index arr (i .&. blockMask)
 
 -- | /O(log n)/.
-index :: Int -> Vector a -> a
+index :: HasCallStack => Int -> Vector a -> a
 index i = fromMaybe (error "AMT.index: index out of range") . lookup i
+
+-- | /O(log n)/. A flipped version of 'lookup'.
+(!?) :: Vector a -> Int -> Maybe a
+(!?) = flip lookup
+
+-- | /O(log n)/. A flipped version of 'index'.
+(!) :: HasCallStack => Vector a -> Int -> a
+(!) = flip index
 
 -- | /O(log n)/. Update the element at the index with a new element.
 -- Returns the original vector if the index is out of range.
@@ -430,6 +441,30 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Balanced arr) = Balanced (fmap mapTree arr)
     mapTree (Unbalanced arr sizes) = Unbalanced (fmap mapTree arr) sizes
     mapTree (Leaf arr) = Leaf (fmap f arr)
+
+-- | /O(log n)/.
+--
+-- >>> viewl (fromList [1, 2, 3])
+-- Just (1,fromList [2,3])
+viewl :: Vector a -> Maybe (a, Vector a)
+viewl Empty = Nothing
+viewl v@(Root _ _ tree) = Just (headTree tree, drop 1 v)
+  where
+    headTree (Balanced arr) = headTree (A.head arr)
+    headTree (Unbalanced arr _) = headTree (A.head arr)
+    headTree (Leaf arr) = A.head arr
+
+-- | /O(log n)/.
+--
+-- >>> viewr (fromList [1, 2, 3])
+-- Just (fromList [1,2],3)
+viewr :: Vector a -> Maybe (Vector a, a)
+viewr Empty = Nothing
+viewr v@(Root size _ tree) = Just (take (size - 1) v, lastTree tree)
+  where
+    lastTree (Balanced arr) = lastTree (A.last arr)
+    lastTree (Unbalanced arr _) = lastTree (A.last arr)
+    lastTree (Leaf arr) = A.last arr
 
 -- | /O(log n)/. Add an element to the left end of the vector.
 (<|) :: a -> Vector a -> Vector a
