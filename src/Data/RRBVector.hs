@@ -1,6 +1,9 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
+-- TODO: documentation
 {- |
 = Finite vectors
 
@@ -8,7 +11,7 @@ The @'Vector' a@ type represents a finite vector (or dynamic array) of elements 
 
 The class instances are based on those for lists.
 
-This module should be imported qualified, to avoid name clashes with the 'Prelude'.
+This module should be imported qualified, to avoid name clashes with the "Prelude".
 
 == Performance
 
@@ -35,34 +38,22 @@ The implementation uses Relaxed-Radix-Balanced trees.
 * Nicolas Stucki, [\"Turning Relaxed Radix Balanced Vector from Theory into Practice for Scala Collections\"](https://raw.githubusercontent.com/nicolasstucki/scala-rrb-vector/master/documents/Master%20Thesis%20-%20Nicolas%20Stucki%20-%20Turning%20Relaxed%20Radix%20Balanced%20Vector%20from%20Theory%20into%20Practice%20for%20Scala%20Collections.pdf), January 2015.
 -}
 
-{- TODO:
-construction (fromFunction, replicate, ...)
-viewl, viewr, ...
-ifoldl, ifoldr, ifoldl', ifoldr'
-imap, itraverse
-reverse
-
-Maybe:
-takeWhile, dropWhile, ...
-zip, zipWith, unzip, ...
--}
-
--- TODO: use GHC.Exts.build (https://hackage.haskell.org/package/base-4.15.0.0/docs/GHC-Exts.html#v:build)?
-
 module Data.RRBVector
-    ( Vector(..)
+    ( Vector
     -- * Construction
-    , empty
-    , singleton
-    , fromList
+    , empty, singleton, fromList
     -- * Indexing
     , lookup, index
     , update
     , adjust
-
-    , map, imap
-    --, ifoldl, ifoldr, ifoldl', ifoldr'
-    --, itraverse
+    -- * With Index
+    --
+    -- | Reexported from [indexed-traversable](https://hackage.haskell.org/package/indexed-traversable).
+    , module Data.Foldable.WithIndex
+    , module Data.Functor.WithIndex
+    , module Data.Traversable.WithIndex
+    -- * Other... stuff
+    , map
     , (<|), (|>), (><)
     , take, drop, splitAt
     , insertAt, deleteAt
@@ -79,20 +70,27 @@ import Control.Monad.Zip (MonadZip(..))
 import Data.Bits
 import Data.Foldable (Foldable(..), for_)
 import Data.Functor.Classes
+import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromMaybe)
-import GHC.Exts (IsList, IsString)
-import qualified GHC.Exts
-import Prelude hiding (lookup, map, take, drop, splitAt, head, last)
+import Data.List (intercalate)
+import qualified GHC.Exts as Exts
+import Text.Read
+import Prelude hiding (lookup, map, take, drop, splitAt, head, last, reverse)
+
+import Data.Functor.WithIndex
+import Data.Foldable.WithIndex
+import Data.Traversable.WithIndex
 
 import Data.Primitive.PrimArray
 import qualified Util.Internal.Array as A
 import qualified Util.Internal.Buffer as Buffer
+import Util.Internal.Indexed
 
 infixr 5 ><
 infixr 5 <|
 infixl 5 |>
 
--- TODO: #ifdef ?
+-- TODO: #ifdef to support older versions?
 
 -- Invariant: Children of a Balanced node are always balanced.
 -- A Leaf node is considered balanced.
@@ -102,6 +100,7 @@ data Tree a
     | Unbalanced !(A.Array (Tree a)) !(PrimArray Int)
     | Leaf !(A.Array a)
 
+-- | A vector.
 data Vector a
     = Empty
     | Root
@@ -109,10 +108,15 @@ data Vector a
         !Int -- shift (blockShift * height)
         !(Tree a)
 
-instance NFData a => NFData (Tree a) where
-    rnf (Balanced arr) = rnf arr
-    rnf (Unbalanced arr _) = rnf arr
-    rnf (Leaf arr) = rnf arr
+debugShow :: (Show a) => Vector a -> String
+debugShow Empty = "Empty"
+debugShow (Root size sh tree) = "Root {size = " ++ show size ++ ", shift = " ++ show sh ++ ", tree = " ++ debugShowTree tree ++ "}"
+  where
+    debugShowTree (Balanced arr) = "Balanced " ++ debugShowArray arr
+    debugShowTree (Unbalanced arr sizes) = "Unbalanced " ++ debugShowArray arr ++ " (" ++ show (primArrayToList sizes) ++ ")"
+    debugShowTree (Leaf arr) = "Leaf " ++ show (toList arr)
+
+    debugShowArray arr = "[" ++ intercalate "," (fmap debugShowTree (toList arr)) ++ "]"
 
 -- The number of bits used per level.
 blockShift :: Int
@@ -200,10 +204,10 @@ instance (Show a) => Show (Vector a) where
     showsPrec = showsPrec1
 
 instance Read1 Vector where
-    liftReadsPrec rp rl = readsData $ readsUnaryWith (liftReadsPrec rp rl) "fromList" fromList
+    liftReadPrec rp rl = readData $ readUnaryWith (liftReadPrec rp rl) "fromList" fromList
 
 instance (Read a) => Read (Vector a) where
-    readsPrec = readsPrec1
+    readPrec = readPrec1
 
 instance Eq1 Vector where
     liftEq f v1 v2 = length v1 == length v2 && liftEq f (toList v1) (toList v2)
@@ -272,8 +276,18 @@ instance Foldable Vector where
     length (Root s _ _) = s
     {-# INLINE length #-}
 
+instance FoldableWithIndex Int Vector where
+    ifoldr f z0 v = foldr (\x g !i -> f i x (g (i + 1))) (const z0) v 0
+
+    ifoldl f z0 v = foldl (\g x !i -> f i (g (i - 1)) x) (const z0) v (length v - 1)
+
 instance Functor Vector where
     fmap = map
+
+instance FunctorWithIndex Int Vector where
+    imap f v = runIdentity $ evalIndexed (traverse (Indexed . f') v) 0
+      where
+        f' x i = i `seq` WithIndex (i + 1) (Identity (f i x))
 
 instance Traversable Vector where
     traverse _ Empty = pure Empty
@@ -282,6 +296,11 @@ instance Traversable Vector where
         traverseTree (Balanced arr) = Balanced <$> traverse traverseTree arr
         traverseTree (Unbalanced arr sizes) = Unbalanced <$> traverse traverseTree arr <*> pure sizes
         traverseTree (Leaf arr) = Leaf <$> traverse f arr
+
+instance TraversableWithIndex Int Vector where
+    itraverse f v = evalIndexed (traverse (Indexed . f') v) 0
+      where
+        f' x i = i `seq` WithIndex (i + 1) (f i x)
 
 instance Applicative Vector where
     pure = singleton
@@ -309,18 +328,16 @@ instance MonadZip Vector where
         | length v1 <= length v2 = imap (\i x -> f x (index i v2)) v1
         | otherwise = imap (\i x -> f (index i v1) x) v2
 
-instance IsList (Vector a) where
+instance Exts.IsList (Vector a) where
     type Item (Vector a) = a
     fromList = fromList
     toList = toList
 
-instance (a ~ Char) => IsString (Vector a) where
+instance (a ~ Char) => Exts.IsString (Vector a) where
     fromString = fromList
 
 instance (NFData a) => NFData (Vector a) where
-    rnf Empty = ()
-    rnf (Root _ _ tree) = rnf tree
-
+    rnf = foldl' (\_ x -> rnf x) ()
 
 -- | /O(1)/. The empty vector.
 --
@@ -377,6 +394,7 @@ lookup i (Root size sh tree)
         in lookupTree subIdx (down sh) (A.index arr idx)
     lookupTree i _ (Leaf arr) = A.index arr (i .&. blockMask)
 
+-- | /O(log n)/.
 index :: Int -> Vector a -> a
 index i = fromMaybe (error "AMT.index: index out of range") . lookup i
 
@@ -400,6 +418,11 @@ adjust i f v@(Root size sh tree)
         in Unbalanced (A.adjust arr idx (adjustTree subIdx (down sh))) sizes
     adjustTree i _ (Leaf arr) = Leaf (A.adjust arr (i .&. blockMask) f)
 
+-- TODO: use strict map?
+-- | /O(n)/. Apply the function to every element.
+--
+-- >>> map (+ 1) (fromList [1, 2, 3])
+-- fromList [2,3,4]
 map :: (a -> b) -> Vector a -> Vector b
 map _ Empty = Empty
 map f (Root size sh tree) = Root size sh (mapTree tree)
@@ -408,9 +431,6 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Unbalanced arr sizes) = Unbalanced (fmap mapTree arr) sizes
     mapTree (Leaf arr) = Leaf (fmap f arr)
 
-imap :: (Int -> a -> b) -> Vector a -> Vector b
-imap = undefined -- TODO
-
 -- | /O(log n)/. Add an element to the left end of the vector.
 (<|) :: a -> Vector a -> Vector a
 x <| v = singleton x >< v -- TODO: optimize?
@@ -418,10 +438,12 @@ x <| v = singleton x >< v -- TODO: optimize?
 
 -- | /O(log n)/. Add an element to the right end of the vector.
 (|>) :: Vector a -> a -> Vector a
-v |> x = v >< singleton x
+v |> x = v >< singleton x -- TODO: optimize?
 {-# INLINE (|>) #-}
 
 -- | /O(log n)/.
+--
+-- > splitAt n v = (take n v, drop n v)
 splitAt :: Int -> Vector a -> (Vector a, Vector a)
 splitAt n v = (take n v, drop n v)
 
@@ -435,7 +457,7 @@ deleteAt i v = let (left, right) = splitAt (i + 1) v in take i left >< right
 
 -- concatenation
 
--- | /O(log max(n, m))/.
+-- | /O(log max(n_1, n_2))/.
 (><) :: Vector a -> Vector a -> Vector a
 Empty >< v = v
 v >< Empty = v
