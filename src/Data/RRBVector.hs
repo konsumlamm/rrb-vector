@@ -41,7 +41,7 @@ The implementation uses Relaxed-Radix-Balanced trees.
 module Data.RRBVector
     ( Vector
     -- * Construction
-    , empty, singleton, fromList
+    , empty, singleton, fromList, fromListUnbalanced
     -- * Indexing
     , lookup, index
     , (!?), (!)
@@ -384,6 +384,38 @@ fromList ls = case nodes Leaf ls of
         [tree] -> Root (treeSize sh tree) sh tree
         trees' -> iterateNodes (up sh) trees'
 
+-- | /O(n)/. Create a new vector from a list. This is only exported for testing purposes, do not use this for
+fromListUnbalanced :: [a] -> Vector a
+fromListUnbalanced [] = Empty
+fromListUnbalanced [x] = singleton x
+fromListUnbalanced ls = case nodes Leaf ls of
+    [tree] -> Root (treeSize 0 tree) 0 tree -- tree is a single leaf
+    ls' -> iterateNodes blockShift ls'
+  where
+    n = blockSize - 1
+
+    nodes f trees = runST $ do
+        buffer <- Buffer.new n
+        let loop [] = do
+                result <- Buffer.get buffer
+                pure [f result]
+            loop (t : ts) = do
+                size <- Buffer.size buffer
+                if size == n then do
+                    result <- Buffer.get buffer
+                    Buffer.push buffer t
+                    rest <- loop ts
+                    pure (f result : rest)
+                else do
+                    Buffer.push buffer t
+                    loop ts
+        loop trees
+    {-# INLINE nodes #-}
+
+    iterateNodes sh trees = case nodes (computeSizes sh) trees of
+        [tree] -> Root (treeSize sh tree) sh tree
+        trees' -> iterateNodes (up sh) trees'
+
 -- | /O(log n)/. The element at the index or 'Nothing' if the index is out of range.
 lookup :: Int -> Vector a -> Maybe a
 lookup _ Empty = Nothing
@@ -465,16 +497,6 @@ viewr v@(Root size _ tree) = Just (take (size - 1) v, lastTree tree)
     lastTree (Balanced arr) = lastTree (A.last arr)
     lastTree (Unbalanced arr _) = lastTree (A.last arr)
     lastTree (Leaf arr) = A.last arr
-
--- | /O(log n)/. Add an element to the left end of the vector.
-(<|) :: a -> Vector a -> Vector a
-x <| v = singleton x >< v -- TODO: optimize?
-{-# INLINE (<|) #-}
-
--- | /O(log n)/. Add an element to the right end of the vector.
-(|>) :: Vector a -> a -> Vector a
-v |> x = v >< singleton x -- TODO: optimize?
-{-# INLINE (|>) #-}
 
 -- | /O(log n)/.
 --
@@ -565,6 +587,91 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
     singleTree (Unbalanced arr _)
         | length arr == 1 = Just (A.head arr)
     singleTree _ = Nothing
+
+-- | /O(log n)/. Add an element to the left end of the vector.
+--
+-- >>> 1 <| fromList [2, 3, 4]
+-- fromList [1,2,3,4]
+(<|) :: a -> Vector a -> Vector a
+x <| Empty = singleton x
+x <| Root size sh tree
+    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (A.from2 (newBranch x sh) tree))
+    | otherwise = Root (size + 1) sh (consTree sh tree)
+  where
+    consTree sh (Balanced arr)
+        | sh == insertShift = computeSizes sh (A.cons arr (newBranch x (down sh)))
+        | otherwise = computeSizes sh (A.adjust arr 0 (consTree (down sh)))
+    consTree sh (Unbalanced arr _)
+        | sh == insertShift = computeSizes sh (A.cons arr (newBranch x (down sh)))
+        | otherwise = computeSizes sh (A.adjust arr 0 (consTree (down sh)))
+    consTree _ (Leaf arr) = Leaf $ A.cons arr x
+
+    insertShift = computeShift sh (up sh) tree
+
+    -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
+    computeShift sh min (Balanced arr) = -- TODO: use bit magic?
+        let newMin = if length arr < blockSize then sh else min
+        in computeShift (down sh) newMin (A.head arr)
+    computeShift sh min (Unbalanced arr _) =
+        let newMin = if length arr < blockSize then sh else min
+        in computeShift (down sh) newMin (A.head arr)
+    computeShift _ min (Leaf arr) = if length arr < blockSize then 0 else min
+
+-- | /O(log n)/. Add an element to the right end of the vector.
+--
+-- >>> fromList [1, 2, 3] |> 4
+-- fromList [1,2,3,4]
+(|>) :: Vector a -> a -> Vector a
+Empty |> x = singleton x
+Root size sh tree |> x
+    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (A.from2 tree (newBranch x sh)))
+    | otherwise = Root (size + 1) sh (snocTree sh tree)
+  where
+    snocTree sh (Balanced arr)
+        | sh == insertShift = Balanced $ A.snoc arr (newBranch x (down sh)) -- the current subtree is fully balanced
+        | otherwise = Balanced $ A.adjust arr (length arr - 1) (snocTree (down sh))
+    snocTree sh (Unbalanced arr sizes)
+        | sh == insertShift = Unbalanced (A.snoc arr (newBranch x (down sh))) newSizesSnoc
+        | otherwise = Unbalanced (A.adjust arr (length arr - 1) (snocTree (down sh))) newSizesAdjust
+      where
+        -- snoc the last size + 1
+        newSizesSnoc = runST $ do
+            let lenSizes = sizeofPrimArray sizes
+            newArr <- newPrimArray (lenSizes + 1)
+            copyPrimArray newArr 0 sizes 0 lenSizes
+            let lastSize = indexPrimArray sizes (lenSizes - 1)
+            writePrimArray newArr lenSizes (lastSize + 1)
+            unsafeFreezePrimArray newArr
+        -- adjust the last size with (+ 1)
+        newSizesAdjust = runST $ do
+            let lenSizes = sizeofPrimArray sizes
+            newArr <- newPrimArray lenSizes
+            copyPrimArray newArr 0 sizes 0 lenSizes
+            let lastSize = indexPrimArray sizes (lenSizes - 1)
+            writePrimArray newArr (lenSizes - 1) (lastSize + 1)
+            unsafeFreezePrimArray newArr
+    snocTree _ (Leaf arr) = Leaf $ A.snoc arr x
+
+    insertShift = computeShift size sh (up sh) tree
+
+    -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
+    -- the index is computed for efficient calculation of the shift in a balanced subtree
+    computeShift i sh min (Balanced _) =
+        let newShift = (countTrailingZeros i `div` blockShift) * blockShift
+        in if newShift > sh then min else newShift
+    computeShift _ sh min (Unbalanced arr sizes) =
+        let i' = indexPrimArray sizes (sizeofPrimArray sizes - 1) - indexPrimArray sizes (sizeofPrimArray sizes - 2) -- sizes has at least 2 elements, otherwise the node would be balanced
+            newMin = if length arr < blockSize then sh else min
+        in computeShift i' (down sh) newMin (A.last arr)
+    computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
+
+-- create a new tree with shift @sh@
+newBranch :: a -> Int -> Tree a
+newBranch x = go
+  where
+    go 0 = Leaf $ A.singleton x
+    go sh = Balanced $ A.singleton (go (down sh))
+{-# INLINE newBranch #-}
 
 -- splitting
 

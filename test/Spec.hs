@@ -1,4 +1,5 @@
 import Data.Foldable (toList)
+import Data.List (uncons)
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -9,8 +10,7 @@ import qualified Data.RRBVector as V
 default (Int)
 
 instance (Arbitrary a) => Arbitrary (V.Vector a) where
-    -- TODO: also generate unbalanced trees
-    arbitrary = V.fromList <$> arbitrary
+    arbitrary = oneof [V.fromList <$> arbitrary, V.fromListUnbalanced <$> arbitrary]
 
 lookupList :: Int -> [a] -> Maybe a
 lookupList i ls
@@ -22,8 +22,12 @@ adjustList i f ls
     | i < length ls = let (left, x : right) = splitAt i ls in left ++ (f x : right)
     | otherwise = ls
 
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc [] = Nothing
+unsnoc ls = Just (init ls, last ls)
+
 main :: IO ()
-main = hspec $ modifyMaxSuccess (const 1000) $ do
+main = hspec . modifyMaxSuccess maxN . modifyMaxSize maxN $ do
     prop "satisfies `fromList . toList == id`" $ \v -> V.fromList (toList v) === v
     prop "satisfies `toList . fromList == id`" $ \ls -> toList (V.fromList ls) === ls
 
@@ -39,6 +43,14 @@ main = hspec $ modifyMaxSuccess (const 1000) $ do
         prop "concatenates two vectors" $ \v1 v2 -> toList (v1 V.>< v2) === toList v1 ++ toList v2
         prop "works for the empty vector" $ \v -> (V.empty V.>< v `shouldBe` v) .&&. (v V.>< V.empty `shouldBe` v)
 
+    describe "|>" $ do
+        prop "works like snoc" $ \v x -> toList (v V.|> x) === toList v ++ [x]
+        prop "works for the empty vector" $ \x -> V.empty V.|> x `shouldBe` V.singleton x
+
+    describe "<|" $ do
+        prop "works like snoc" $ \x v -> toList (x V.<| v) === x : toList v
+        prop "works for the empty vector" $ \x -> x V.<| V.empty `shouldBe` V.singleton x
+
     describe "take" $ do
         prop "takes n elements" $ \v (Positive n) -> toList (V.take n v) === take n (toList v)
         prop "works for non-positive n" $ \v (NonPositive n) -> V.take n v === V.empty
@@ -46,3 +58,13 @@ main = hspec $ modifyMaxSuccess (const 1000) $ do
     describe "drop" $ do
         prop "drops n elements" $ \v (Positive n) -> toList (V.drop n v) === drop n (toList v)
         prop "works for non-positive n" $ \v (NonPositive n) -> V.drop n v === v
+
+    describe "viewl" $ do
+        prop "works like uncons" $ \v -> fmap (\(x, xs) -> (x, toList xs)) (V.viewl v) === uncons (toList v)
+        prop "works for the empty vector" $ V.viewl V.empty `shouldBe` Nothing
+
+    describe "viewr" $ do
+        prop "works like unsnoc" $ \v -> fmap (\(xs, x) -> (toList xs, x)) (V.viewr v) === unsnoc (toList v)
+        prop "works for the empty vector" $ V.viewr V.empty `shouldBe` Nothing
+  where
+    maxN = const 10_000
