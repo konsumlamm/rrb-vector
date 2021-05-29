@@ -1,6 +1,8 @@
 module Util.Internal.Indexed where
 
-data WithIndex a = WithIndex !Int !a
+-- TODO: use unboxed tuples?
+
+data WithIndex a = WithIndex !Int a
 
 -- | > Compose (State Int) f a
 newtype Indexed f a = Indexed { runIndexed :: Int -> WithIndex (f a) }

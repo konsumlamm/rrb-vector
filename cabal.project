@@ -1,2 +1,8 @@
+packages:
+  ./
+
 test-show-details: direct
 benchmark-options: --small
+
+package *
+  documentation: True
