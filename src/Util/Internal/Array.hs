@@ -14,6 +14,7 @@ module Util.Internal.Array
     , freeze
     ) where
 
+import Control.Applicative (Applicative(liftA2))
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.ST
@@ -37,6 +38,7 @@ instance Semigroup (Array a) where
 instance Functor Array where
     fmap f (Array start len arr) = Array 0 len $ runSmallArray $ do
         sma <- newSmallArray len uninitialized
+        -- i is the index in arr, j is the index in sma
         let loop i j = when (j < len) $ do
                 x <- indexSmallArrayM arr i
                 writeSmallArray sma j (f x)
@@ -81,11 +83,17 @@ instance Foldable Array where
     length (Array _ len _) = len
     {-# INLINE length #-}
 
+newtype STA a = STA (forall s. SmallMutableArray s a -> ST s (SmallArray a))
+
 instance Traversable Array where
-    -- TODO: optimize?
-    traverse f arr = Array 0 len . smallArrayFromListN len <$> traverse f (toList arr)
+    traverse f (Array start len arr) =
+        -- i is the index in arr, j is the index in sma
+        let go i j
+                | j == len = pure $ STA unsafeFreezeSmallArray
+                | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
+        in runSTA <$> go start 0
       where
-        !len = length arr
+        runSTA (STA m) = Array 0 len (runST $ newSmallArray len uninitialized >>= m)
 
 instance (NFData a) => NFData (Array a) where
     rnf = foldl' (\_ x -> rnf x) ()

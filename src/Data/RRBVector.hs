@@ -5,7 +5,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 
--- TODO: documentation
 {- |
 = Finite vectors
 
@@ -17,16 +16,15 @@ This module should be imported qualified, to avoid name clashes with the "Prelud
 
 == Performance
 
-The worst case running time complexities are given, with /n/ referring the the number of elements in the vector.
-All logarithms are base 16, which means that /O(log n)/ behaves more like /O(1)/ in practice.
+The worst case running time complexities are given, with \(n\) referring the the number of elements in the vector.
+All logarithms are base 16, which means that \(O(\log n)\) behaves more like \(O(1)\) in practice.
 
 == Comparison with @Data.Sequence@
 
-[Seq](https://hackage.haskell.org/package/containers/docs/Data-Sequence.html) is a similar container from the
-[containers](https://hackage.haskell.org/package/containers) package.
+[Seq](https://hackage.haskell.org/package/containers/docs/Data-Sequence.html) is a similar container.
 
 @Seq@ has about the same speed for splitting and concatenation, but is considerably slower for indexing and folding.
-On the other hand, @Seq@ has (amortized) /O(1)/ access to the front/back, whereas it is /O(log n)/ for @Vector@.
+On the other hand, @Seq@ has (amortized) \(O(1)\) access to the front/back, whereas it is \(O(\log n)\) for @Vector@.
 
 == Warning
 
@@ -170,7 +168,7 @@ treeBalanced (Balanced _) = True
 treeBalanced (Unbalanced _ _) = False
 treeBalanced (Leaf _) = True
 
--- | @treeSize sh@ is the size of a tree with shift @sh@.
+-- @treeSize sh@ is the size of a tree with shift @sh@.
 treeSize :: Int -> Tree a -> Int
 treeSize = go 0
   where
@@ -181,7 +179,7 @@ treeSize = go 0
         in go (acc + i * (1 `shiftL` sh)) (down sh) (A.index arr i)
 {-# INLINE treeSize #-}
 
--- | @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
+-- @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
 -- @sh@ is the shift of the resulting tree.
 computeSizes :: Int -> A.Array (Tree a) -> Tree a
 computeSizes sh arr = runST $ do
@@ -203,7 +201,7 @@ computeSizes sh arr = runST $ do
         sizes <- unsafeFreezePrimArray sizes -- safe because the mutable @sizes@ isn't used afterwards
         pure $ Unbalanced arr sizes
 
--- Integer log base 2..
+-- Integer log base 2.
 log2 :: Int -> Int
 log2 x = bitSizeMinus1 - countLeadingZeros x
   where
@@ -217,9 +215,11 @@ instance (Show a) => Show (Vector a) where
 
 instance Read1 Vector where
     liftReadPrec rp rl = readData $ readUnaryWith (liftReadPrec rp rl) "fromList" fromList
+    liftReadListPrec = liftReadListPrecDefault
 
 instance (Read a) => Read (Vector a) where
     readPrec = readPrec1
+    readListPrec = readListPrecDefault
 
 instance Eq1 Vector where
     liftEq f v1 v2 = length v1 == length v2 && liftEq f (toList v1) (toList v2)
@@ -351,19 +351,19 @@ instance (a ~ Char) => Exts.IsString (Vector a) where
 instance (NFData a) => NFData (Vector a) where
     rnf = foldl' (\_ x -> rnf x) ()
 
--- | /O(1)/. The empty vector.
+-- | \(O(1)\). The empty vector.
 --
 -- > empty = fromList []
 empty :: Vector a
 empty = Empty
 
--- | /O(1)/. A vector with a single element.
+-- | \(O(1)\). A vector with a single element.
 --
 -- > singleton x = fromList [x]
 singleton :: a -> Vector a
 singleton x = Root 1 0 (Leaf $ A.singleton x)
 
--- | /O(n)/. Create a new vector from a list.
+-- | \(O(n)\). Create a new vector from a list.
 fromList :: [a] -> Vector a
 fromList [] = Empty
 fromList [x] = singleton x
@@ -393,7 +393,7 @@ fromList ls = case nodes Leaf ls of
         [tree] -> Root (treeSize sh tree) sh tree
         trees' -> iterateNodes (up sh) trees'
 
--- | /O(n)/. Create a new vector from a list. This is only exported for testing purposes, do not use this for
+-- | \(O(n)\). Create a new vector from a list. This is only exported for testing purposes, otherwise use 'fromList'.
 fromListUnbalanced :: [a] -> Vector a
 fromListUnbalanced [] = Empty
 fromListUnbalanced [x] = singleton x
@@ -425,7 +425,7 @@ fromListUnbalanced ls = case nodes Leaf ls of
         [tree] -> Root (treeSize sh tree) sh tree
         trees' -> iterateNodes (up sh) trees'
 
--- | /O(log n)/. The element at the index or 'Nothing' if the index is out of range.
+-- | \(O(\log n)\). The element at the index or 'Nothing' if the index is out of range.
 lookup :: Int -> Vector a -> Maybe a
 lookup _ Empty = Nothing
 lookup i (Root size sh tree)
@@ -441,25 +441,25 @@ lookup i (Root size sh tree)
         in lookupTree subIdx (down sh) subtree
     lookupTree i _ (Leaf arr) = A.index# arr (i .&. blockMask)
 
--- | /O(log n)/.
+-- | \(O(\log n)\). The element at the index. Errors if the index is out of range.
 index :: HasCallStack => Int -> Vector a -> a
 index i = fromMaybe (error "AMT.index: index out of range") . lookup i
 
--- | /O(log n)/. A flipped version of 'lookup'.
+-- | \(O(\log n)\). A flipped version of 'lookup'.
 (!?) :: Vector a -> Int -> Maybe a
 (!?) = flip lookup
 
--- | /O(log n)/. A flipped version of 'index'.
+-- | \(O(\log n)\). A flipped version of 'index'.
 (!) :: HasCallStack => Vector a -> Int -> a
 (!) = flip index
 
--- | /O(log n)/. Update the element at the index with a new element.
+-- | \(O(\log n)\). Update the element at the index with a new element.
 -- Returns the original vector if the index is out of range.
 update :: Int -> a -> Vector a -> Vector a
 update i x = adjust i (const x)
 {-# INLINE update #-}
 
--- | /O(log n)/. Adjust the element at the index by applying the function to it.
+-- | \(O(\log n)\). Adjust the element at the index by applying the function to it.
 -- Returns the original vector if the index is out of range.
 adjust :: Int -> (a -> a) -> Vector a -> Vector a
 adjust _ _ Empty = Empty
@@ -474,7 +474,7 @@ adjust i f v@(Root size sh tree)
     adjustTree i _ (Leaf arr) = Leaf (A.adjust arr (i .&. blockMask) f)
 
 -- TODO: use strict map?
--- | /O(n)/. Apply the function to every element.
+-- | \(O(n)\). Apply the function to every element.
 --
 -- >>> map (+ 1) (fromList [1, 2, 3])
 -- fromList [2,3,4]
@@ -486,63 +486,78 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Unbalanced arr sizes) = Unbalanced (fmap mapTree arr) sizes
     mapTree (Leaf arr) = Leaf (fmap f arr)
 
--- | /O(n)/. Reverses the vector.
+-- | \(O(n)\). Reverse the vector.
 --
 -- >>> reverse (fromList [1, 2, 3])
 -- fromList [3,2,1]
 reverse :: Vector a -> Vector a
 reverse = fromList . foldl' (flip (:)) [] -- convert the vector to a reverse list and then rebuild
 
+-- | \(O(\min(n_1, n_2))\). Take two vectors and return a vector of corresponding pairs.
+-- If one input is longer, excess elements are discarded from the right end.
+--
+-- > zip = zipWith (,)
 zip :: Vector a -> Vector b -> Vector (a, b)
 zip = zipWith (,)
 
+-- | \(O(\min(n_1, n_2))\). 'zipWith' generalizes 'zip' by zipping with the function.
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 
+-- | \(O(n)\). Unzip a vector of pairs.
+--
+-- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
+-- (fromList [1,2,3],fromList ["a","b","c"])
 unzip :: Vector (a, b) -> (Vector a, Vector b)
 unzip v = (map fst v, map snd v)
 
--- | /O(log n)/.
+-- | \(O(\log n)\). The first element and the vector without the first element, or 'Nothing' if the vector is empty.
 --
 -- >>> viewl (fromList [1, 2, 3])
 -- Just (1,fromList [2,3])
 viewl :: Vector a -> Maybe (a, Vector a)
 viewl Empty = Nothing
-viewl v@(Root _ _ tree) = Just (headTree tree, drop 1 v)
+viewl v@(Root _ _ tree) = let !tail = drop 1 v in Just (headTree tree, tail)
   where
     headTree (Balanced arr) = headTree (A.head arr)
     headTree (Unbalanced arr _) = headTree (A.head arr)
     headTree (Leaf arr) = A.head arr
 
--- | /O(log n)/.
+-- | \(O(\log n)\). The vector without the last element and the last element, or 'Nothing' if the vector is empty.
 --
 -- >>> viewr (fromList [1, 2, 3])
 -- Just (fromList [1,2],3)
 viewr :: Vector a -> Maybe (Vector a, a)
 viewr Empty = Nothing
-viewr v@(Root size _ tree) = Just (take (size - 1) v, lastTree tree)
+viewr v@(Root size _ tree) = let !init = take (size - 1) v in Just (init, lastTree tree)
   where
     lastTree (Balanced arr) = lastTree (A.last arr)
     lastTree (Unbalanced arr _) = lastTree (A.last arr)
     lastTree (Leaf arr) = A.last arr
 
--- | /O(log n)/.
+-- | \(O(\log n)\). Split the vector at the given index.
 --
 -- > splitAt n v = (take n v, drop n v)
 splitAt :: Int -> Vector a -> (Vector a, Vector a)
-splitAt n v = (take n v, drop n v) -- TODO: force the resulting vectors first (whnf)?
+splitAt n v =
+    let !left = take n v
+        !right = drop n v
+    in (left, right)
 
--- | /O(log n)/.
+-- | \(O(\log n)\). Insert an element at the given index.
 insertAt :: Int -> a -> Vector a -> Vector a
 insertAt i x v = let (left, right) = splitAt i v in (left |> x) >< right
 
--- | /O(log n)/.
+-- | \(O(\log n)\). Delete the element at the given index.
 deleteAt :: Int -> Vector a -> Vector a
 deleteAt i v = let (left, right) = splitAt (i + 1) v in take i left >< right
 
 -- concatenation
 
--- | /O(log max(n_1, n_2))/.
+-- | \(O(\log \max(n_1, n_2))\). Concatenates two vectors.
+--
+-- >>> fromList [1, 2, 3] >< fromList [4, 5]
+-- fromList [1,2,3,4,5]
 (><) :: Vector a -> Vector a -> Vector a
 Empty >< v = v
 v >< Empty = v
@@ -616,7 +631,7 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
         | length arr == 1 = Just (A.head arr)
     singleTree _ = Nothing
 
--- | /O(log n)/. Add an element to the left end of the vector.
+-- | \(O(\log n)\). Add an element to the left end of the vector.
 --
 -- >>> 1 <| fromList [2, 3, 4]
 -- fromList [1,2,3,4]
@@ -639,7 +654,7 @@ x <| Root size sh tree
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
     -- the index is computed for efficient calculation of the shift in a balanced subtree
     computeShift i sh min (Balanced _) =
-        let newShift = (log2 i `div` blockShift) * blockShift -- log2 x = finiteBitSize x - 1 - countLeadingZeros x
+        let newShift = (log2 i `div` blockShift) * blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
         let i' = indexPrimArray sizes 0 -- the size of the first subtree
@@ -647,7 +662,7 @@ x <| Root size sh tree
         in computeShift i' (down sh) newMin (A.head arr)
     computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
 
--- | /O(log n)/. Add an element to the right end of the vector.
+-- | \(O(\log n)\). Add an element to the right end of the vector.
 --
 -- >>> fromList [1, 2, 3] |> 4
 -- fromList [1,2,3,4]
@@ -705,7 +720,7 @@ newBranch x = go
 
 -- splitting
 
--- | /O(log n)/.
+-- | \(O(\log n)\). The first @n@ elements of the vector.
 take :: Int -> Vector a -> Vector a
 take _ Empty = Empty
 take n v@(Root size sh tree)
@@ -724,7 +739,7 @@ take n v@(Root size sh tree)
         in computeSizes sh (A.adjust newArr idx (takeTree subIdx (down sh)))
     takeTree i _ (Leaf arr) = Leaf (A.take arr ((i .&. blockMask) + 1))
 
--- | /O(log n)/.
+-- | \(O(\log n)\). The vector without the first @n@ elements
 drop :: Int -> Vector a -> Vector a
 drop _ Empty = Empty
 drop n v@(Root size sh tree)
