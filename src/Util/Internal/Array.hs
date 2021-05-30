@@ -6,7 +6,8 @@
 module Util.Internal.Array
     ( Array, MutableArray
     , empty, singleton, from2
-    , index, adjust, head, last
+    , index, index#, head, last
+    , adjust
     , take, drop, splitAt
     , snoc, cons
     , new, write
@@ -106,6 +107,9 @@ from2 x y = Array 0 2 $ runSmallArray $ do
 
 index :: Array a -> Int -> a
 index (Array start _ arr) idx = indexSmallArray arr (start + idx)
+
+index# :: Array a -> Int -> (# a #)
+index# (Array start _ arr) idx = indexSmallArray## arr (start + idx)
 
 adjust :: Array a -> Int -> (a -> a) -> Array a
 adjust (Array start len sa) idx f = Array 0 len $ runSmallArray $ do

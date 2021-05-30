@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- TODO: documentation
 {- |
@@ -54,11 +56,12 @@ module Data.RRBVector
     , module Data.Functor.WithIndex
     , module Data.Traversable.WithIndex
     -- * Other... stuff
-    , map
+    , map, reverse
     , (<|), (|>), (><)
     , take, drop, splitAt
     , insertAt, deleteAt
     , viewl, viewr
+    , zip, zipWith, unzip
     ) where
 
 import Control.Applicative (Alternative)
@@ -74,11 +77,11 @@ import Data.Foldable (Foldable(..), for_)
 import Data.Functor.Classes
 import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromMaybe)
-import Data.List (intercalate)
+import qualified Data.List as List
 import qualified GHC.Exts as Exts
 import GHC.Stack (HasCallStack)
 import Text.Read
-import Prelude hiding (lookup, map, take, drop, splitAt, head, last, reverse)
+import Prelude hiding (lookup, map, take, drop, splitAt, head, last, reverse, zip, zipWith, unzip)
 
 import Data.Functor.WithIndex
 import Data.Foldable.WithIndex
@@ -93,7 +96,7 @@ infixr 5 ><
 infixr 5 <|
 infixl 5 |>
 
--- TODO: #ifdef to support older versions?
+-- TODO: #if to support older versions (Semigroup, MonadFail)?
 
 -- Invariant: Children of a Balanced node are always balanced.
 -- A Leaf node is considered balanced.
@@ -119,7 +122,7 @@ debugShow (Root size sh tree) = "Root {size = " ++ show size ++ ", shift = " ++ 
     debugShowTree (Unbalanced arr sizes) = "Unbalanced " ++ debugShowArray arr ++ " (" ++ show (primArrayToList sizes) ++ ")"
     debugShowTree (Leaf arr) = "Leaf " ++ show (toList arr)
 
-    debugShowArray arr = "[" ++ intercalate "," (fmap debugShowTree (toList arr)) ++ "]"
+    debugShowArray arr = "[" ++ List.intercalate "," (fmap debugShowTree (toList arr)) ++ "]"
 
 -- The number of bits used per level.
 blockShift :: Int
@@ -199,6 +202,12 @@ computeSizes sh arr = runST $ do
     else do
         sizes <- unsafeFreezePrimArray sizes -- safe because the mutable @sizes@ isn't used afterwards
         pure $ Unbalanced arr sizes
+
+-- Integer log base 2..
+log2 :: Int -> Int
+log2 x = bitSizeMinus1 - countLeadingZeros x
+  where
+    bitSizeMinus1 = finiteBitSize (0 :: Int) - 1
 
 instance Show1 Vector where
     liftShowsPrec sp sl p v = showsUnaryWith (liftShowsPrec sp sl) "fromList" p (toList v)
@@ -327,9 +336,9 @@ instance MonadFix Vector where
         err = error "mfix for Data.RRBVector.Vector applied to strict function"
 
 instance MonadZip Vector where
-    mzipWith f v1 v2
-        | length v1 <= length v2 = imap (\i x -> f x (index i v2)) v1
-        | otherwise = imap (\i x -> f (index i v1) x) v2
+    mzipWith = zipWith
+    mzip = zip
+    munzip = unzip
 
 instance Exts.IsList (Vector a) where
     type Item (Vector a) = a
@@ -421,13 +430,16 @@ lookup :: Int -> Vector a -> Maybe a
 lookup _ Empty = Nothing
 lookup i (Root size sh tree)
     | i < 0 || i >= size = Nothing  -- index out of range
-    | otherwise = Just $ lookupTree i sh tree
+    | (# x #) <- lookupTree i sh tree = Just x
   where
-    lookupTree i sh (Balanced arr) = lookupTree i (down sh) (A.index arr (radixIndex i sh))
+    lookupTree i sh (Balanced arr) =
+        let (# subtree #) = A.index# arr (radixIndex i sh)
+        in lookupTree i (down sh) subtree
     lookupTree i sh (Unbalanced arr sizes) =
         let (idx, subIdx) = relaxedRadixIndex sizes i sh
-        in lookupTree subIdx (down sh) (A.index arr idx)
-    lookupTree i _ (Leaf arr) = A.index arr (i .&. blockMask)
+            (# subtree #) = A.index# arr idx
+        in lookupTree subIdx (down sh) subtree
+    lookupTree i _ (Leaf arr) = A.index# arr (i .&. blockMask)
 
 -- | /O(log n)/.
 index :: HasCallStack => Int -> Vector a -> a
@@ -474,6 +486,22 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Unbalanced arr sizes) = Unbalanced (fmap mapTree arr) sizes
     mapTree (Leaf arr) = Leaf (fmap f arr)
 
+-- | /O(n)/. Reverses the vector.
+--
+-- >>> reverse (fromList [1, 2, 3])
+-- fromList [3,2,1]
+reverse :: Vector a -> Vector a
+reverse = fromList . foldl' (flip (:)) [] -- convert the vector to a reverse list and then rebuild
+
+zip :: Vector a -> Vector b -> Vector (a, b)
+zip = zipWith (,)
+
+zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
+zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
+
+unzip :: Vector (a, b) -> (Vector a, Vector b)
+unzip v = (map fst v, map snd v)
+
 -- | /O(log n)/.
 --
 -- >>> viewl (fromList [1, 2, 3])
@@ -502,7 +530,7 @@ viewr v@(Root size _ tree) = Just (take (size - 1) v, lastTree tree)
 --
 -- > splitAt n v = (take n v, drop n v)
 splitAt :: Int -> Vector a -> (Vector a, Vector a)
-splitAt n v = (take n v, drop n v)
+splitAt n v = (take n v, drop n v) -- TODO: force the resulting vectors first (whnf)?
 
 -- | /O(log n)/.
 insertAt :: Int -> a -> Vector a -> Vector a
@@ -606,16 +634,18 @@ x <| Root size sh tree
         | otherwise = computeSizes sh (A.adjust arr 0 (consTree (down sh)))
     consTree _ (Leaf arr) = Leaf $ A.cons arr x
 
-    insertShift = computeShift sh (up sh) tree
+    insertShift = computeShift size sh (up sh) tree
 
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
-    computeShift sh min (Balanced arr) = -- TODO: use bit magic?
-        let newMin = if length arr < blockSize then sh else min
-        in computeShift (down sh) newMin (A.head arr)
-    computeShift sh min (Unbalanced arr _) =
-        let newMin = if length arr < blockSize then sh else min
-        in computeShift (down sh) newMin (A.head arr)
-    computeShift _ min (Leaf arr) = if length arr < blockSize then 0 else min
+    -- the index is computed for efficient calculation of the shift in a balanced subtree
+    computeShift i sh min (Balanced _) =
+        let newShift = (log2 i `div` blockShift) * blockShift -- log2 x = finiteBitSize x - 1 - countLeadingZeros x
+        in if newShift > sh then min else newShift
+    computeShift _ sh min (Unbalanced arr sizes) =
+        let i' = indexPrimArray sizes 0 -- the size of the first subtree
+            newMin = if length arr < blockSize then sh else min
+        in computeShift i' (down sh) newMin (A.head arr)
+    computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
 
 -- | /O(log n)/. Add an element to the right end of the vector.
 --
