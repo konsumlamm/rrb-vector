@@ -3,15 +3,19 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-module Util.Internal.Array
+-- Warning: No bound checks are performed!
+
+module Data.RRBVector.Internal.Array
     ( Array, MutableArray
     , empty, singleton, from2
-    , index, index#, head, last
-    , adjust
+    , index, head, last
+    , update, adjust, adjust'
     , take, drop, splitAt
     , snoc, cons
-    , new, write
-    , freeze
+    , map, map'
+    , traverse, traverse'
+    , new, read, write
+    , freeze, thaw
     ) where
 
 import Control.Applicative (Applicative(liftA2))
@@ -20,7 +24,7 @@ import Control.Monad (when)
 import Control.Monad.ST
 import Data.Foldable (Foldable(..))
 import Data.Primitive.SmallArray
-import Prelude hiding (take, drop, splitAt, head, last)
+import Prelude hiding (take, drop, splitAt, head, last, map, traverse, read)
 
 -- start length array
 data Array a = Array !Int !Int !(SmallArray a)
@@ -34,17 +38,6 @@ instance Semigroup (Array a) where
         pure sma
       where
         !len' = len1 + len2
-
-instance Functor Array where
-    fmap f (Array start len arr) = Array 0 len $ runSmallArray $ do
-        sma <- newSmallArray len uninitialized
-        -- i is the index in arr, j is the index in sma
-        let loop i j = when (j < len) $ do
-                x <- indexSmallArrayM arr i
-                writeSmallArray sma j (f x)
-                loop (i + 1) (j + 1)
-        loop start 0
-        pure sma
 
 instance Foldable Array where
     foldr f = \z (Array start len arr) ->
@@ -83,18 +76,6 @@ instance Foldable Array where
     length (Array _ len _) = len
     {-# INLINE length #-}
 
-newtype STA a = STA (forall s. SmallMutableArray s a -> ST s (SmallArray a))
-
-instance Traversable Array where
-    traverse f (Array start len arr) =
-        -- i is the index in arr, j is the index in sma
-        let go i j
-                | j == len = pure $ STA unsafeFreezeSmallArray
-                | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
-        in runSTA <$> go start 0
-      where
-        runSTA (STA m) = Array 0 len (runST $ newSmallArray len uninitialized >>= m)
-
 instance (NFData a) => NFData (Array a) where
     rnf = foldl' (\_ x -> rnf x) ()
 
@@ -116,14 +97,24 @@ from2 x y = Array 0 2 $ runSmallArray $ do
 index :: Array a -> Int -> a
 index (Array start _ arr) idx = indexSmallArray arr (start + idx)
 
-index# :: Array a -> Int -> (# a #)
-index# (Array start _ arr) idx = indexSmallArray## arr (start + idx)
+update :: Array a -> Int -> a -> Array a
+update (Array start len sa) idx x = Array 0 len $ runSmallArray $ do
+    sma <- thawSmallArray sa start len
+    writeSmallArray sma idx x
+    pure sma
 
 adjust :: Array a -> Int -> (a -> a) -> Array a
 adjust (Array start len sa) idx f = Array 0 len $ runSmallArray $ do
     sma <- thawSmallArray sa start len
     x <- indexSmallArrayM sa (start + idx)
     writeSmallArray sma idx (f x)
+    pure sma
+
+adjust' :: Array a -> Int -> (a -> a) -> Array a
+adjust' (Array start len sa) idx f = Array 0 len $ runSmallArray $ do
+    sma <- thawSmallArray sa start len
+    x <- indexSmallArrayM sa (start + idx)
+    writeSmallArray sma idx $! f x
     pure sma
 
 take :: Array a -> Int -> Array a
@@ -156,6 +147,49 @@ cons (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
     pure sma
   where
     !len' = len + 1
+
+map :: (a -> b) -> Array a -> Array b
+map f (Array start len arr) = Array 0 len $ runSmallArray $ do
+    sma <- newSmallArray len uninitialized
+    -- i is the index in arr, j is the index in sma
+    let loop i j = when (j < len) $ do
+            x <- indexSmallArrayM arr i
+            writeSmallArray sma j (f x)
+            loop (i + 1) (j + 1)
+    loop start 0
+    pure sma
+
+map' :: (a -> b) -> Array a -> Array b
+map' f (Array start len arr) = Array 0 len $ runSmallArray $ do
+    sma <- newSmallArray len uninitialized
+    -- i is the index in arr, j is the index in sma
+    let loop i j = when (j < len) $ do
+            x <- indexSmallArrayM arr i
+            writeSmallArray sma j $! f x
+            loop (i + 1) (j + 1)
+    loop start 0
+    pure sma
+
+newtype STA a = STA (forall s. SmallMutableArray s a -> ST s (SmallArray a))
+
+runSTA :: Int -> STA a -> Array a
+runSTA len (STA m) = Array 0 len (runST $ newSmallArray len uninitialized >>= m)
+
+traverse :: (Applicative f) => (a -> f b) -> Array a -> f (Array b)
+traverse f (Array start len arr) =
+    -- i is the index in arr, j is the index in sma
+    let go i j
+            | j == len = pure $ STA unsafeFreezeSmallArray
+            | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
+    in runSTA len <$> go start 0
+
+traverse' :: (Applicative f) => (a -> f b) -> Array a -> f (Array b)
+traverse' f (Array start len arr) =
+    -- i is the index in arr, j is the index in sma
+    let go i j
+            | j == len = pure $ STA unsafeFreezeSmallArray
+            | (# x #) <- indexSmallArray## arr i = liftA2 (\ !y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
+    in runSTA len <$> go start 0
 
 new :: Int -> ST s (MutableArray s a)
 new len = MutableArray 0 len <$> newSmallArray len uninitialized

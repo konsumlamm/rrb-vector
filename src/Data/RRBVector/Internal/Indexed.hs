@@ -1,4 +1,4 @@
-module Util.Internal.Indexed where
+module Data.RRBVector.Internal.Indexed where
 
 -- TODO: use unboxed tuples?
 

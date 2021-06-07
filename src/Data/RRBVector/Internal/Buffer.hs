@@ -1,4 +1,4 @@
-module Util.Internal.Buffer
+module Data.RRBVector.Internal.Buffer
     ( Buffer
     , new
     , push
@@ -8,8 +8,8 @@ module Util.Internal.Buffer
 
 import Control.Monad.ST
 
-import Util.Internal.IntRef
-import qualified Util.Internal.Array as A
+import Data.RRBVector.Internal.IntRef
+import qualified Data.RRBVector.Internal.Array as A
 
 data Buffer s a = Buffer !(A.MutableArray s a) !(IntRef s)
 

@@ -6,16 +6,22 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 
 import qualified Data.RRBVector as V
+import Data.RRBVector.Internal.Debug (fromListUnbalanced)
 
 default (Int)
 
 instance (Arbitrary a) => Arbitrary (V.Vector a) where
-    arbitrary = oneof [V.fromList <$> arbitrary, V.fromListUnbalanced <$> arbitrary]
+    arbitrary = oneof [V.fromList <$> arbitrary, fromListUnbalanced <$> arbitrary]
 
 lookupList :: Int -> [a] -> Maybe a
 lookupList i ls
     | i < length ls = Just (ls !! i)
     | otherwise = Nothing
+
+updateList :: Int -> a -> [a] -> [a]
+updateList i x ls
+    | i < length ls = let (left, _ : right) = splitAt i ls in left ++ (x : right)
+    | otherwise = ls
 
 adjustList :: Int -> (a -> a) -> [a] -> [a]
 adjustList i f ls
@@ -35,8 +41,12 @@ main = hspec . modifyMaxSuccess maxN . modifyMaxSize maxN $ do
         prop "gets the element at the index" $ \v (NonNegative i) -> V.lookup i v === lookupList i (toList v)
         prop "returns Nothing for negative indices" $ \v (Negative i) -> V.lookup i v === Nothing
 
+    describe "update" $ do
+        prop "updates the element at the index" $ \v (NonNegative i) x -> toList (V.update i x v) === updateList i x (toList v)
+        prop "returns the vector for negative indices" $ \v (Negative i) x -> V.update i x v === v
+
     describe "adjust" $ do
-        prop "gets the element at the index" $ \v (NonNegative i) -> toList (V.adjust i (+ 1) v) === adjustList i (+ 1) (toList v)
+        prop "adjusts the element at the index" $ \v (NonNegative i) -> toList (V.adjust i (+ 1) v) === adjustList i (+ 1) (toList v)
         prop "returns the vector for negative indices" $ \v (Negative i) -> V.adjust i (+ 1) v === v
 
     describe "><" $ do

@@ -1,4 +1,4 @@
-module Util.Internal.IntRef
+module Data.RRBVector.Internal.IntRef
     ( IntRef
     , newIntRef
     , readIntRef

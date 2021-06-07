@@ -1,3 +1,5 @@
 # rbb-vector
 
-An implementation of a Relaxed Radix Balanced Vector. `Data.RRBVector` provides a similar interface to `Data.Sequence` (from the `containers` package).
+An implementation of a Relaxed Radix Balanced Vector (RRB-Vector).
+
+For more information, see [`rrb-vector` on Hackage](https://hackage.haskell.org/package/rrb-vector).
