@@ -9,11 +9,6 @@ The worst case running time complexities are given, with \(n\) referring to the 
 (or \(n_1\), \(n_2\), etc. for multiple vectors). Note that all logarithms are base 16,
 so the constant factor for \(O(\log n)\) operations is quite small.
 
-= Comparison with [Data.Sequence](https://hackage.haskell.org/package/containers/docs/Data-Sequence.html)
-
-@Seq a@ is a container with a very similar API. RRB-Vectors are generally faster for indexing and folding,
-while sequences are faster for access to the front/back (amortized \(O(1)\)).
-
 = Implementation
 
 The implementation uses Relaxed-Radix-Balanced trees, as described by

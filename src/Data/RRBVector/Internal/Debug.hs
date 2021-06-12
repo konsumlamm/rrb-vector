@@ -1,3 +1,7 @@
+{- |
+This module contains some debug utilities. It should only be used for debugging/testing purposes.
+-}
+
 module Data.RRBVector.Internal.Debug
     ( showTree
     , fromListUnbalanced
@@ -23,6 +27,8 @@ showTree (Root size sh tree) = "Root {size = " ++ show size ++ ", shift = " ++ s
     debugShowArray arr = "[" ++ intercalate "," (fmap debugShowTree (toList arr)) ++ "]"
 
 -- | \(O(n)\). Create a new unbalanced vector from a list.
+--
+-- Note that it is not possbible to create an invalid 'Vector' with this function.
 fromListUnbalanced :: [a] -> Vector a
 fromListUnbalanced [] = Empty
 fromListUnbalanced [x] = singleton x

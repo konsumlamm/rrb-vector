@@ -54,20 +54,20 @@ main = hspec . modifyMaxSuccess maxN . modifyMaxSize maxN $ do
         prop "works for the empty vector" $ \v -> (V.empty V.>< v `shouldBe` v) .&&. (v V.>< V.empty `shouldBe` v)
 
     describe "|>" $ do
-        prop "works like snoc" $ \v x -> toList (v V.|> x) === toList v ++ [x]
+        prop "appends an element" $ \v x -> toList (v V.|> x) === toList v ++ [x]
         prop "works for the empty vector" $ \x -> V.empty V.|> x `shouldBe` V.singleton x
 
     describe "<|" $ do
-        prop "works like snoc" $ \x v -> toList (x V.<| v) === x : toList v
+        prop "prepends an element" $ \x v -> toList (x V.<| v) === x : toList v
         prop "works for the empty vector" $ \x -> x V.<| V.empty `shouldBe` V.singleton x
 
     describe "take" $ do
         prop "takes n elements" $ \v (Positive n) -> toList (V.take n v) === take n (toList v)
-        prop "works for non-positive n" $ \v (NonPositive n) -> V.take n v === V.empty
+        prop "returns the empty vector for non-positive n" $ \v (NonPositive n) -> V.take n v === V.empty
 
     describe "drop" $ do
         prop "drops n elements" $ \v (Positive n) -> toList (V.drop n v) === drop n (toList v)
-        prop "works for non-positive n" $ \v (NonPositive n) -> V.drop n v === v
+        prop "does nothing for non-positive n" $ \v (NonPositive n) -> V.drop n v === v
 
     describe "viewl" $ do
         prop "works like uncons" $ \v -> fmap (\(x, xs) -> (x, toList xs)) (V.viewl v) === uncons (toList v)
@@ -76,5 +76,8 @@ main = hspec . modifyMaxSuccess maxN . modifyMaxSize maxN $ do
     describe "viewr" $ do
         prop "works like unsnoc" $ \v -> fmap (\(xs, x) -> (toList xs, x)) (V.viewr v) === unsnoc (toList v)
         prop "works for the empty vector" $ V.viewr V.empty `shouldBe` Nothing
+
+    describe "map" $ do
+        prop "maps over the vector" $ \v -> toList (V.map (+ 1) v) === map (+ 1) (toList v)
   where
     maxN = const 10_000
