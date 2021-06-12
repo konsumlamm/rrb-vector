@@ -30,9 +30,9 @@ module Data.RRBVector.Internal
 
 import Control.Applicative (Alternative, liftA2)
 import qualified Control.Applicative
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq
 import Control.Monad (when, MonadPlus)
-import Control.Monad.ST
+import Control.Monad.ST (runST)
 #if !(MIN_VERSION_base(4,13,0))
 import Control.Monad.Fail (MonadFail(..))
 #endif
@@ -280,9 +280,8 @@ instance Applicative Vector where
     pure = singleton
     fs <*> xs = foldl' (\acc f -> acc >< map f xs) empty fs
     liftA2 f xs ys = foldl' (\acc x -> acc >< map (f x) ys) empty xs
-    -- TODO: optimize?
-    (*>) = liftA2 (\_ y -> y) -- concatenate ys (length xs) times with itself
-    (<*) = liftA2 (\x _ -> x) -- (length ys) times the first element of xs, then (length ys) times the second element of xs, etc.
+    xs *> ys = foldl' (\acc _ -> acc >< ys) empty xs
+    xs <* ys = foldl' (\acc x -> acc >< fromList (replicate (length ys) x)) empty xs
 
 instance Monad Vector where
     xs >>= f = foldl' (\acc x -> acc >< f x) empty xs
@@ -315,7 +314,10 @@ instance (a ~ Char) => Exts.IsString (Vector a) where
     fromString = fromList
 
 instance (NFData a) => NFData (Vector a) where
-    rnf = foldl' (\_ x -> rnf x) ()
+    rnf = rnf1
+
+instance NFData1 Vector where
+    liftRnf f = foldl' (\_ x -> f x) ()
 
 -- | \(O(1)\). The empty vector.
 --
