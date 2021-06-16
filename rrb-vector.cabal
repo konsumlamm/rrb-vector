@@ -18,7 +18,9 @@ maintainer:         konsumlamm@gmail.com
 copyright:          2021 konsumlamm
 category:           Data Structures
 build-type:         Simple
-extra-source-files: README.md
+extra-source-files:
+  CHANGELOG.md
+  README.md
 cabal-version:      2.0
 tested-with:        GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.5, GHC == 9.0.1
 
