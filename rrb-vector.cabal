@@ -24,7 +24,7 @@ tested-with:        GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.5, GHC
 
 source-repository head
   type:     git
-  location: https://github.com/konsumlamm/rbb-vector
+  location: https://github.com/konsumlamm/rrb-vector
 
 library
   hs-source-dirs:       src

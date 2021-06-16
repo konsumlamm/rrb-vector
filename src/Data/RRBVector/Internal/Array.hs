@@ -8,6 +8,7 @@
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
     , empty, singleton, from2
+    , replicate, replicateSnoc
     , index, head, last
     , update, adjust, adjust'
     , take, drop, splitAt
@@ -24,7 +25,7 @@ import Control.Monad (when)
 import Control.Monad.ST
 import Data.Foldable (Foldable(..))
 import Data.Primitive.SmallArray
-import Prelude hiding (take, drop, splitAt, head, last, map, traverse, read)
+import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read)
 
 -- start length array
 data Array a = Array !Int !Int !(SmallArray a)
@@ -93,6 +94,18 @@ from2 x y = Array 0 2 $ runSmallArray $ do
     sma <- newSmallArray 2 x
     writeSmallArray sma 1 y
     pure sma
+
+replicate :: Int -> a -> Array a
+replicate n x = Array 0 n $ runSmallArray (newSmallArray n x)
+
+-- > replicateSnoc n x y = snoc (replicate n x) y
+replicateSnoc :: Int -> a -> a -> Array a
+replicateSnoc n x y = Array 0 len $ runSmallArray $ do
+    sma <- newSmallArray len x
+    writeSmallArray sma n y
+    pure sma
+  where
+    len = n + 1
 
 index :: Array a -> Int -> a
 index (Array start _ arr) idx = indexSmallArray arr (start + idx)

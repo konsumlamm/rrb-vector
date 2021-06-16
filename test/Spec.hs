@@ -37,6 +37,10 @@ main = hspec . modifyMaxSuccess maxN . modifyMaxSize maxN $ do
     prop "satisfies `fromList . toList == id`" $ \v -> V.fromList (toList v) === v
     prop "satisfies `toList . fromList == id`" $ \ls -> toList (V.fromList ls) === ls
 
+    describe "replicate" $ do
+        prop "satisifes `replicate n == fromList . replicate n`" $ \(Positive n) x -> V.replicate n x === V.fromList (replicate n x)
+        prop "returns the empty vector for non-positive n" $ \(NonPositive n) x -> V.replicate n x === V.empty
+
     describe "lookup" $ do
         prop "gets the element at the index" $ \v (NonNegative i) -> V.lookup i v === lookupList i (toList v)
         prop "returns Nothing for negative indices" $ \v (Negative i) -> V.lookup i v === Nothing

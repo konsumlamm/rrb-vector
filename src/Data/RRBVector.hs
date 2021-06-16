@@ -21,7 +21,7 @@ Currently, a branching factor of 16 is used. The tree is strict in its spine, bu
 module Data.RRBVector
     ( Vector
     -- * Construction
-    , empty, singleton, fromList
+    , empty, singleton, fromList, replicate
     -- ** Concatenation
     , (<|), (|>), (><)
     -- * Deconstruction
@@ -45,7 +45,7 @@ module Data.RRBVector
     , zip, zipWith, unzip
     ) where
 
-import Prelude hiding (lookup, take, drop, splitAt, map, reverse, zip, zipWith, unzip)
+import Prelude hiding (replicate, lookup, take, drop, splitAt, map, reverse, zip, zipWith, unzip)
 
 import Data.Foldable.WithIndex
 import Data.Functor.WithIndex

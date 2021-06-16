@@ -10,7 +10,7 @@ module Data.RRBVector.Internal
     -- * Internal
     , blockShift, blockSize, treeSize, computeSizes, up
     -- * Construction
-    , empty, singleton, fromList
+    , empty, singleton, fromList, replicate
     -- ** Concatenation
     , (<|), (|>), (><)
     -- * Deconstruction
@@ -48,7 +48,7 @@ import qualified Data.List as List
 import qualified GHC.Exts as Exts
 import GHC.Stack (HasCallStack)
 import Text.Read
-import Prelude hiding (lookup, map, take, drop, splitAt, head, last, reverse, zip, zipWith, unzip)
+import Prelude hiding (replicate, lookup, map, take, drop, splitAt, head, last, reverse, zip, zipWith, unzip)
 
 import Data.Functor.WithIndex
 import Data.Foldable.WithIndex
@@ -256,7 +256,7 @@ instance FoldableWithIndex Int Vector where
 
 instance Functor Vector where
     fmap = map
-    x <$ v = fromList (replicate (length v) x)
+    x <$ v = replicate (length v) x
 
 instance FunctorWithIndex Int Vector where
     imap f v = runIdentity $ evalIndexed (traverse (Indexed . f') v) 0
@@ -281,7 +281,7 @@ instance Applicative Vector where
     fs <*> xs = foldl' (\acc f -> acc >< map f xs) empty fs
     liftA2 f xs ys = foldl' (\acc x -> acc >< map (f x) ys) empty xs
     xs *> ys = foldl' (\acc _ -> acc >< ys) empty xs
-    xs <* ys = foldl' (\acc x -> acc >< fromList (replicate (length ys) x)) empty xs
+    xs <* ys = foldl' (\acc x -> acc >< replicate (length ys) x) empty xs
 
 instance Monad Vector where
     xs >>= f = foldl' (\acc x -> acc >< f x) empty xs
@@ -344,7 +344,7 @@ fromList ls = case nodes Leaf ls of
         let loop [] = do
                 result <- Buffer.get buffer
                 pure [f result]
-            loop (t : ts) = do
+            loop (t : ts) = t `seq` do
                 size <- Buffer.size buffer
                 if size == blockSize then do
                     result <- Buffer.get buffer
@@ -360,6 +360,25 @@ fromList ls = case nodes Leaf ls of
     iterateNodes sh trees = case nodes Balanced trees of
         [tree] -> Root (treeSize sh tree) sh tree
         trees' -> iterateNodes (up sh) trees'
+
+-- | \(O(\log n)\). @replicate n x@ creates a vector of length @n@ with every element set to @x@.
+--
+-- >>> replicate 5 42
+-- fromList [42,42,42,42,42]
+replicate :: Int -> a -> Vector a
+replicate n x
+    | n <= 0 = Empty
+    | n <= blockSize = Root n 0 (Leaf $ A.replicate n x)
+    | otherwise = iterateNodes blockShift (Leaf $ A.replicate blockSize x) (Leaf $ A.replicate (lastIdx .&. blockMask + 1) x)
+  where
+    lastIdx = n - 1
+
+    -- @full@ is a full subtree, @rest@ is the last subtree
+    iterateNodes !sh !full !rest =
+        let subtreesM1 = lastIdx `shiftR` sh -- the number of subtrees minus 1
+            full' = Balanced $ A.replicate blockSize full
+            rest' = Balanced $ A.replicateSnoc (subtreesM1 .&. blockMask) full rest
+        in if subtreesM1 < blockSize then Root n sh rest' else iterateNodes (up sh) full' rest'
 
 -- | \(O(\log n)\). The element at the index or 'Nothing' if the index is out of range.
 lookup :: Int -> Vector a -> Maybe a
