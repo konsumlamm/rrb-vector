@@ -365,6 +365,8 @@ fromList ls = case nodes Leaf ls of
 --
 -- >>> replicate 5 42
 -- fromList [42,42,42,42,42]
+--
+-- @since 0.1.1.0
 replicate :: Int -> a -> Vector a
 replicate n x
     | n <= 0 = Empty
