@@ -67,9 +67,9 @@ infixl 5 |>
 -- A Leaf node is considered balanced.
 -- Nodes are always non-empty.
 data Tree a
-    = Balanced !(A.Array (Tree a))
-    | Unbalanced !(A.Array (Tree a)) !(PrimArray Int)
-    | Leaf !(A.Array a)
+    = Balanced {-# UNPACK #-} !(A.Array (Tree a))
+    | Unbalanced {-# UNPACK #-} !(A.Array (Tree a)) {-# UNPACK #-} !(PrimArray Int)
+    | Leaf {-# UNPACK #-} !(A.Array a)
 
 -- | A vector.
 --
