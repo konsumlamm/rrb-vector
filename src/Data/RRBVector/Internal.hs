@@ -68,7 +68,7 @@ infixl 5 |>
 -- Nodes are always non-empty.
 data Tree a
     = Balanced {-# UNPACK #-} !(A.Array (Tree a))
-    | Unbalanced {-# UNPACK #-} !(A.Array (Tree a)) {-# UNPACK #-} !(PrimArray Int)
+    | Unbalanced {-# UNPACK #-} !(A.Array (Tree a)) !(PrimArray Int)
     | Leaf {-# UNPACK #-} !(A.Array a)
 
 -- | A vector.
