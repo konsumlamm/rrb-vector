@@ -45,10 +45,10 @@ library
 
 test-suite test
   hs-source-dirs:       test
-  main-is:              Spec.hs
+  main-is:              Main.hs
   type:                 exitcode-stdio-1.0
   ghc-options:          -Wall -Wno-orphans -Wno-type-defaults
-  build-depends:        base >= 4.11 && < 5, rrb-vector, hspec, QuickCheck
+  build-depends:        base >= 4.11 && < 5, rrb-vector, tasty, tasty-quickcheck
   default-language:     Haskell2010
   default-extensions:   ExtendedDefaultRules, NumericUnderscores
 
@@ -58,5 +58,5 @@ benchmark rrb-bench
   type:                 exitcode-stdio-1.0
   default-language:     Haskell2010
   ghc-options:          -O2
-  build-depends:        base >= 4.11 && < 5, gauge, rrb-vector
+  build-depends:        base >= 4.11 && < 5, rrb-vector, tasty-bench
   default-extensions:   ExtendedDefaultRules, NumericUnderscores

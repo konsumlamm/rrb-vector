@@ -2,7 +2,7 @@
 
 import Data.Functor ((<&>))
 
-import Gauge.Main
+import Test.Tasty.Bench
 
 import qualified Data.RRBVector as RRB
 
