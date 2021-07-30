@@ -63,6 +63,8 @@ infixr 5 ><
 infixr 5 <|
 infixl 5 |>
 
+type Shift = Int
+
 -- Invariant: Children of a Balanced node are always balanced.
 -- A Leaf node is considered balanced.
 -- Nodes are always non-empty.
@@ -78,11 +80,11 @@ data Vector a
     = Empty
     | Root
         !Int -- size
-        !Int -- shift (blockShift * height)
+        !Shift -- shift (blockShift * height)
         !(Tree a)
 
 -- The number of bits used per level.
-blockShift :: Int
+blockShift :: Shift
 blockShift = 4
 {-# INLINE blockShift #-}
 
@@ -94,19 +96,19 @@ blockSize = 1 `shiftL` blockShift
 blockMask :: Int
 blockMask = blockSize - 1
 
-up :: Int -> Int
+up :: Shift -> Shift
 up sh = sh + blockShift
 {-# INLINE up #-}
 
-down :: Int -> Int
+down :: Shift -> Shift
 down sh = sh - blockShift
 {-# INLINE down #-}
 
-radixIndex :: Int -> Int -> Int
+radixIndex :: Int -> Shift -> Int
 radixIndex i sh = i `shiftR` sh .&. blockMask
 {-# INLINE radixIndex #-}
 
-relaxedRadixIndex :: PrimArray Int -> Int -> Int -> (Int, Int)
+relaxedRadixIndex :: PrimArray Int -> Int -> Shift -> (Int, Int)
 relaxedRadixIndex sizes i sh =
     let guess = radixIndex i sh -- guess <= idx
         idx = loop guess
@@ -129,7 +131,7 @@ treeBalanced (Unbalanced _ _) = False
 treeBalanced (Leaf _) = True
 
 -- @treeSize sh@ is the size of a tree with shift @sh@.
-treeSize :: Int -> Tree a -> Int
+treeSize :: Shift -> Tree a -> Int
 treeSize = go 0
   where
     go acc _ (Leaf arr) = acc + length arr
@@ -141,7 +143,7 @@ treeSize = go 0
 
 -- @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
 -- @sh@ is the shift of the resulting tree.
-computeSizes :: Int -> A.Array (Tree a) -> Tree a
+computeSizes :: Shift -> A.Array (Tree a) -> Tree a
 computeSizes sh arr = runST $ do
     let len = length arr
         maxSize = 1 `shiftL` sh -- the maximum size of a subtree
@@ -571,7 +573,7 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
         viewr arr = (A.take arr (length arr - 1), A.last arr)
 
     -- the type annotations are necessary to compile
-    mergeRebalance :: forall a. Int -> A.Array (Tree a) -> A.Array (Tree a) -> A.Array (Tree a) -> Tree a
+    mergeRebalance :: forall a. Shift -> A.Array (Tree a) -> A.Array (Tree a) -> A.Array (Tree a) -> Tree a
     mergeRebalance sh left center right
         | sh == blockShift = mergeRebalance' (\(Leaf arr) -> arr) Leaf
         | otherwise = mergeRebalance' treeToArray (computeSizes (down sh))
@@ -685,7 +687,7 @@ Root size sh tree |> x
     computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
 
 -- create a new tree with shift @sh@
-newBranch :: a -> Int -> Tree a
+newBranch :: a -> Shift -> Tree a
 newBranch x = go
   where
     go 0 = Leaf $ A.singleton x
