@@ -43,12 +43,13 @@ import Data.Bits
 import Data.Foldable (Foldable(..), for_)
 import Data.Functor.Classes
 import Data.Functor.Identity (Identity(..))
-import Data.Maybe (fromMaybe)
 import qualified Data.List as List
+import Data.Maybe (fromMaybe)
+import Data.Semigroup
 import qualified GHC.Exts as Exts
 import GHC.Stack (HasCallStack)
-import Text.Read
 import Prelude hiding (replicate, lookup, map, take, drop, splitAt, head, last, reverse, zip, zipWith, unzip)
+import Text.Read
 
 import Data.Functor.WithIndex
 import Data.Foldable.WithIndex
@@ -86,11 +87,10 @@ data Vector a
 -- The number of bits used per level.
 blockShift :: Shift
 blockShift = 4
-{-# INLINE blockShift #-}
 
 -- The maximum size of a block.
 blockSize :: Int
-blockSize = 1 `shiftL` blockShift
+blockSize = 1 `unsafeShiftL` blockShift
 
 -- The mask used to extract the index into the array.
 blockMask :: Int
@@ -98,15 +98,12 @@ blockMask = blockSize - 1
 
 up :: Shift -> Shift
 up sh = sh + blockShift
-{-# INLINE up #-}
 
 down :: Shift -> Shift
 down sh = sh - blockShift
-{-# INLINE down #-}
 
 radixIndex :: Int -> Shift -> Int
-radixIndex i sh = i `shiftR` sh .&. blockMask
-{-# INLINE radixIndex #-}
+radixIndex i sh = i `unsafeShiftR` sh .&. blockMask
 
 relaxedRadixIndex :: PrimArray Int -> Int -> Shift -> (Int, Int)
 relaxedRadixIndex sizes i sh =
@@ -118,7 +115,6 @@ relaxedRadixIndex sizes i sh =
     loop idx =
         let current = indexPrimArray sizes idx -- idx will always be in range for a well-formed tree
         in if i < current then idx else loop (idx + 1)
-{-# INLINE relaxedRadixIndex #-}
 
 treeToArray :: Tree a -> A.Array (Tree a)
 treeToArray (Balanced arr) = arr
@@ -134,41 +130,49 @@ treeBalanced (Leaf _) = True
 treeSize :: Shift -> Tree a -> Int
 treeSize = go 0
   where
-    go acc _ (Leaf arr) = acc + length arr
+    go !acc !_ (Leaf arr) = acc + length arr
     go acc _ (Unbalanced _ sizes) = acc + indexPrimArray sizes (sizeofPrimArray sizes - 1)
     go acc sh (Balanced arr) =
         let i = length arr - 1
-        in go (acc + i * (1 `shiftL` sh)) (down sh) (A.index arr i)
+        in go (acc + i * (1 `unsafeShiftL` sh)) (down sh) (A.index arr i)
 {-# INLINE treeSize #-}
 
 -- @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
 -- @sh@ is the shift of the resulting tree.
 computeSizes :: Shift -> A.Array (Tree a) -> Tree a
-computeSizes sh arr = runST $ do
-    let len = length arr
-        maxSize = 1 `shiftL` sh -- the maximum size of a subtree
-    sizes <- newPrimArray len
-    let loop acc isBalanced i
-            | i < len =
-                let subtree = A.index arr i
-                    size = treeSize (down sh) subtree
-                    acc' = acc + size
-                    isBalanced' = isBalanced && if i == len - 1 then treeBalanced subtree else size == maxSize
-                in writePrimArray sizes i acc' *> loop acc' isBalanced' (i + 1)
-            | otherwise = pure isBalanced
-    isBalanced <- loop 0 True 0
-    if isBalanced then
-        pure $ Balanced arr
-    else do
-        sizes <- unsafeFreezePrimArray sizes -- safe because the mutable @sizes@ isn't used afterwards
-        pure $ Unbalanced arr sizes
+computeSizes !sh arr
+    | isBalanced = Balanced arr
+    | otherwise = runST $ do
+        sizes <- newPrimArray (length arr)
+        let loop acc i
+                | i < len =
+                    let size = treeSize (down sh) (A.index arr i)
+                        acc' = acc + size
+                    in writePrimArray sizes i acc' *> loop acc' (i + 1)
+                | otherwise = do
+                    sizes <- unsafeFreezePrimArray sizes -- safe because the mutable @sizes@ isn't used afterwards
+                    pure $ Unbalanced arr sizes
+        loop 0 0
+  where
+    maxSize = 1 `unsafeShiftL` sh -- the maximum size of a subtree
+
+    len = length arr
+
+    lenM1 = len - 1
+
+    isBalanced = go 0
+      where
+        go i
+            | i < lenM1 = treeSize (down sh) subtree == maxSize && go (i + 1)
+            | otherwise = treeBalanced subtree
+          where
+            subtree = A.index arr i
 
 -- Integer log base 2.
 log2 :: Int -> Int
 log2 x = bitSizeMinus1 - countLeadingZeros x
   where
     bitSizeMinus1 = finiteBitSize (0 :: Int) - 1
-{-# INLINE log2 #-}
 
 instance Show1 Vector where
     liftShowsPrec sp sl p v = showsUnaryWith (liftShowsPrec sp sl) "fromList" p (toList v)
@@ -197,7 +201,8 @@ instance (Ord a) => Ord (Vector a) where
     compare = compare1
 
 instance Semigroup (Vector a) where
-    v1 <> v2 = v1 >< v2
+    (<>) = (><)
+    stimes = stimesMonoid
 
 instance Monoid (Vector a) where
     mempty = empty
@@ -245,16 +250,16 @@ instance Foldable Vector where
 
     null Empty = True
     null Root{} = False
-    {-# INLINE null #-}
 
     length Empty = 0
     length (Root s _ _) = s
-    {-# INLINE length #-}
 
 instance FoldableWithIndex Int Vector where
     ifoldr f z0 v = foldr (\x g !i -> f i x (g (i + 1))) (const z0) v 0
+    {-# INLINE ifoldr #-}
 
     ifoldl f z0 v = foldl (\g x !i -> f i (g (i - 1)) x) (const z0) v (length v - 1)
+    {-# INLINE ifoldl #-}
 
 instance Functor Vector where
     fmap = map
@@ -263,20 +268,22 @@ instance Functor Vector where
 instance FunctorWithIndex Int Vector where
     imap f v = runIdentity $ evalIndexed (traverse (Indexed . f') v) 0
       where
-        f' x i = i `seq` WithIndex (i + 1) (Identity (f i x))
+        f' x !i = WithIndex (i + 1) (Identity (f i x))
 
 instance Traversable Vector where
     traverse _ Empty = pure Empty
     traverse f (Root size sh tree) = Root size sh <$> traverseTree tree
       where
         traverseTree (Balanced arr) = Balanced <$> A.traverse' traverseTree arr
-        traverseTree (Unbalanced arr sizes) = Unbalanced <$> A.traverse' traverseTree arr <*> pure sizes
+        traverseTree (Unbalanced arr sizes) = liftA2 Unbalanced (A.traverse' traverseTree arr) (pure sizes)
         traverseTree (Leaf arr) = Leaf <$> A.traverse f arr
+    {-# INLINE traverse #-}
 
 instance TraversableWithIndex Int Vector where
     itraverse f v = evalIndexed (traverse (Indexed . f') v) 0
       where
-        f' x i = i `seq` WithIndex (i + 1) (f i x)
+        f' x !i = WithIndex (i + 1) (f i x)
+    {-# INLINE itraverse #-}
 
 instance Applicative Vector where
     pure = singleton
@@ -379,7 +386,7 @@ replicate n x
 
     -- @full@ is a full subtree, @rest@ is the last subtree
     iterateNodes !sh !full !rest =
-        let subtreesM1 = lastIdx `shiftR` sh -- the number of subtrees minus 1
+        let subtreesM1 = lastIdx `unsafeShiftR` sh -- the number of subtrees minus 1
             full' = Balanced $ A.replicate blockSize full
             rest' = Balanced $ A.replicateSnoc (subtreesM1 .&. blockMask) full rest
         in if subtreesM1 < blockSize then Root n sh rest' else iterateNodes (up sh) full' rest'
@@ -474,7 +481,7 @@ reverse = fromList . foldl' (flip (:)) [] -- convert the vector to a reverse lis
 --
 -- > zip = zipWith (,)
 zip :: Vector a -> Vector b -> Vector (a, b)
-zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
+zip = zipWith (,)
 
 -- | \(O(\min(n_1, n_2))\). 'zipWith' generalizes 'zip' by zipping with the function.
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
@@ -485,7 +492,10 @@ zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 -- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
 -- (fromList [1,2,3],fromList ["a","b","c"])
 unzip :: Vector (a, b) -> (Vector a, Vector b)
-unzip v = (map fst v, map snd v)
+unzip v =
+    let !left = map fst v
+        !right = map snd v
+    in (left, right)
 
 -- | \(O(\log n)\). The first element and the vector without the first element, or 'Nothing' if the vector is empty.
 --
@@ -539,46 +549,50 @@ Empty >< v = v
 v >< Empty = v
 Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
     let maxShift = max sh1 sh2
-        newTree = mergeTrees tree1 sh1 tree2 sh2
-    in case singleTree newTree of
-        Just newTree -> Root (size1 + size2) maxShift newTree
-        Nothing -> Root (size1 + size2) (up maxShift) newTree
+        upMaxShift = up maxShift
+        newArr = mergeTrees tree1 sh1 tree2 sh2
+    in if length newArr == 1
+        then Root (size1 + size2) maxShift (A.head newArr)
+        else Root (size1 + size2) upMaxShift (computeSizes upMaxShift newArr)
   where
-    mergeTrees (Leaf arr1) _ (Leaf arr2) _ = Balanced $
-        if length arr1 == blockSize then A.from2 (Leaf arr1) (Leaf arr2)
-        else if length arr1 + length arr2 <= blockSize then A.singleton (Leaf (arr1 <> arr2))
-        else
+    mergeTrees tree1@(Leaf arr1) !_ tree2@(Leaf arr2) !_
+        | length arr1 == blockSize = A.from2 tree1 tree2
+        | length arr1 + length arr2 <= blockSize = A.singleton $! Leaf (arr1 <> arr2)
+        | otherwise =
             let (left, right) = A.splitAt (arr1 <> arr2) blockSize
-            in A.from2 (Leaf left) (Leaf right)
+                !leftTree = Leaf left
+                !rightTree = Leaf right
+            in A.from2 leftTree rightTree
     mergeTrees tree1 sh1 tree2 sh2 = case compare sh1 sh2 of
         LT ->
-            let right = treeToArray tree2
-                (rightHead, rightTail) = viewl right
+            let !right = treeToArray tree2
+                (rightHead, rightTail) = viewlArr right
                 merged = mergeTrees tree1 sh1 rightHead (down sh2)
-            in mergeRebalance sh2 A.empty (treeToArray merged) rightTail
+            in mergeRebalance sh2 A.empty merged rightTail
         GT ->
-            let left = treeToArray tree1
-                (leftInit, leftLast) = viewr left
+            let !left = treeToArray tree1
+                (leftInit, leftLast) = viewrArr left
                 merged = mergeTrees leftLast (down sh1) tree2 sh2
-            in mergeRebalance sh1 leftInit (treeToArray merged) A.empty
+            in mergeRebalance sh1 leftInit merged A.empty
         EQ ->
-            let left = treeToArray tree1
-                right = treeToArray tree2
-                (leftInit, leftLast) = viewr left
-                (rightHead, rightTail) = viewl right
+            let !left = treeToArray tree1
+                !right = treeToArray tree2
+                (leftInit, leftLast) = viewrArr left
+                (rightHead, rightTail) = viewlArr right
                 merged = mergeTrees leftLast (down sh1) rightHead (down sh2)
-            in mergeRebalance sh1 leftInit (treeToArray merged) rightTail
+            in mergeRebalance sh1 leftInit merged rightTail
       where
-        viewl arr = (A.head arr, A.drop arr 1)
-        viewr arr = (A.take arr (length arr - 1), A.last arr)
+        viewlArr arr = (A.head arr, A.drop arr 1)
 
-    -- the type annotations are necessary to compile
-    mergeRebalance :: forall a. Shift -> A.Array (Tree a) -> A.Array (Tree a) -> A.Array (Tree a) -> Tree a
-    mergeRebalance sh left center right
+        viewrArr arr = (A.take arr (length arr - 1), A.last arr)
+
+    -- the type signature is necessary to compile
+    mergeRebalance :: forall a. Shift -> A.Array (Tree a) -> A.Array (Tree a) -> A.Array (Tree a) -> A.Array (Tree a)
+    mergeRebalance !sh !left !center !right
         | sh == blockShift = mergeRebalance' (\(Leaf arr) -> arr) Leaf
         | otherwise = mergeRebalance' treeToArray (computeSizes (down sh))
       where
-        mergeRebalance' :: (Tree a -> A.Array t) -> (A.Array t -> Tree a) -> Tree a
+        mergeRebalance' :: (Tree a -> A.Array t) -> (A.Array t -> Tree a) -> A.Array (Tree a)
         mergeRebalance' extract construct = runST $ do
             newRoot <- Buffer.new blockSize
             newSubtree <- Buffer.new blockSize
@@ -593,19 +607,13 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
                     Buffer.push newNode x
             pushTo construct newNode newSubtree
             pushTo (computeSizes sh) newSubtree newRoot
-            computeSizes (up sh) <$> Buffer.get newRoot
+            Buffer.get newRoot
         {-# INLINE mergeRebalance' #-}
 
         pushTo f from to = do
             result <- Buffer.get from
-            Buffer.push to (f result)
+            Buffer.push to $! f result
         {-# INLINE pushTo #-}
-
-    singleTree (Balanced arr)
-        | length arr == 1 = Just (A.head arr)
-    singleTree (Unbalanced arr _)
-        | length arr == 1 = Just (A.head arr)
-    singleTree _ = Nothing
 
 -- | \(O(\log n)\). Add an element to the left end of the vector.
 --
@@ -614,28 +622,28 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
 (<|) :: a -> Vector a -> Vector a
 x <| Empty = singleton x
 x <| Root size sh tree
-    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (A.from2 (newBranch x sh) tree))
+    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (let !new = newBranch x sh in A.from2 new tree))
     | otherwise = Root (size + 1) sh (consTree sh tree)
   where
     consTree sh (Balanced arr)
-        | sh == insertShift = computeSizes sh (A.cons arr (newBranch x (down sh)))
+        | sh == insertShift = computeSizes sh (A.cons arr $! newBranch x (down sh))
         | otherwise = computeSizes sh (A.adjust' arr 0 (consTree (down sh)))
     consTree sh (Unbalanced arr _)
-        | sh == insertShift = computeSizes sh (A.cons arr (newBranch x (down sh)))
+        | sh == insertShift = computeSizes sh (A.cons arr $! newBranch x (down sh))
         | otherwise = computeSizes sh (A.adjust' arr 0 (consTree (down sh)))
     consTree _ (Leaf arr) = Leaf $ A.cons arr x
 
     insertShift = computeShift size sh (up sh) tree
 
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
-    -- the index is computed for efficient calculation of the shift in a balanced subtree
-    computeShift i sh min (Balanced _) =
-        let newShift = (log2 i `div` blockShift) * blockShift
+    -- the size is computed for efficient calculation of the shift in a balanced subtree
+    computeShift !sz !sh !min (Balanced _) =
+        let newShift = (log2 sz `div` blockShift) * blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
-        let i' = indexPrimArray sizes 0 -- the size of the first subtree
+        let sz' = indexPrimArray sizes 0 -- the size of the first subtree
             newMin = if length arr < blockSize then sh else min
-        in computeShift i' (down sh) newMin (A.head arr)
+        in computeShift sz' (down sh) newMin (A.head arr)
     computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
 
 -- | \(O(\log n)\). Add an element to the right end of the vector.
@@ -645,14 +653,14 @@ x <| Root size sh tree
 (|>) :: Vector a -> a -> Vector a
 Empty |> x = singleton x
 Root size sh tree |> x
-    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (A.from2 tree (newBranch x sh)))
+    | insertShift > sh = Root (size + 1) insertShift (computeSizes insertShift (A.from2 tree $! newBranch x sh))
     | otherwise = Root (size + 1) sh (snocTree sh tree)
   where
     snocTree sh (Balanced arr)
-        | sh == insertShift = Balanced $ A.snoc arr (newBranch x (down sh)) -- the current subtree is fully balanced
+        | sh == insertShift = Balanced (A.snoc arr $! newBranch x (down sh)) -- the current subtree is fully balanced
         | otherwise = Balanced $ A.adjust' arr (length arr - 1) (snocTree (down sh))
     snocTree sh (Unbalanced arr sizes)
-        | sh == insertShift = Unbalanced (A.snoc arr (newBranch x (down sh))) newSizesSnoc
+        | sh == insertShift = Unbalanced (A.snoc arr $! newBranch x (down sh)) newSizesSnoc
         | otherwise = Unbalanced (A.adjust' arr (length arr - 1) (snocTree (down sh))) newSizesAdjust
       where
         -- snoc the last size + 1
@@ -676,23 +684,23 @@ Root size sh tree |> x
     insertShift = computeShift size sh (up sh) tree
 
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
-    -- the index is computed for efficient calculation of the shift in a balanced subtree
-    computeShift i sh min (Balanced _) =
-        let newShift = (countTrailingZeros i `div` blockShift) * blockShift
+    -- the size is computed for efficient calculation of the shift in a balanced subtree
+    computeShift !sz !sh !min (Balanced _) =
+        let newShift = (countTrailingZeros sz `div` blockShift) * blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
-        let i' = indexPrimArray sizes (sizeofPrimArray sizes - 1) - indexPrimArray sizes (sizeofPrimArray sizes - 2) -- sizes has at least 2 elements, otherwise the node would be balanced
+        let lastIdx = sizeofPrimArray sizes - 1
+            sz' = indexPrimArray sizes lastIdx - indexPrimArray sizes (lastIdx - 1) -- the size of the last subtree
             newMin = if length arr < blockSize then sh else min
-        in computeShift i' (down sh) newMin (A.last arr)
+        in computeShift sz' (down sh) newMin (A.last arr)
     computeShift _ _ min (Leaf arr) = if length arr < blockSize then 0 else min
 
 -- create a new tree with shift @sh@
 newBranch :: a -> Shift -> Tree a
 newBranch x = go
   where
-    go 0 = Leaf $ A.singleton x
-    go sh = Balanced $ A.singleton (go (down sh))
-{-# INLINE newBranch #-}
+    go 0 = Leaf (A.singleton x)
+    go sh = Balanced (A.singleton $! go (down sh))
 
 -- splitting
 

@@ -47,21 +47,18 @@ instance Foldable Array where
                 | i == end = z
                 | (# x #) <- indexSmallArray## arr i = f x (go (i + 1))
         in go start
-    {-# INLINE foldr #-}
 
     foldl f = \z (Array start len arr) ->
         let go i
                 | i < start = z
                 | (# x #) <- indexSmallArray## arr i = f (go (i - 1)) x
         in go (start + len - 1)
-    {-# INLINE foldl #-}
 
     foldr' f = \z (Array start len arr) ->
         let go i !acc
                 | i < start = acc
                 | (# x #) <- indexSmallArray## arr i = go (i - 1) (f x acc)
         in go (start + len - 1) z
-    {-# INLINE foldr' #-}
 
     foldl' f = \z (Array start len arr) ->
         let !end = start + len
@@ -69,13 +66,10 @@ instance Foldable Array where
                 | i == end = acc
                 | (# x #) <- indexSmallArray## arr i = go (i + 1) (f acc x)
         in go start z
-    {-# INLINE foldl' #-}
 
     null arr = length arr == 0
-    {-# INLINE null #-}
 
     length (Array _ len _) = len
-    {-# INLINE length #-}
 
 instance (NFData a) => NFData (Array a) where
     rnf = foldl' (\_ x -> rnf x) ()

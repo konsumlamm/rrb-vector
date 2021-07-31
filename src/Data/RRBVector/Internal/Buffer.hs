@@ -23,7 +23,7 @@ push :: Buffer s a -> a -> ST s ()
 push (Buffer buffer offset) x = do
     idx <- readIntRef offset
     A.write buffer idx x
-    modifyIntRef offset (+ 1)
+    writeIntRef offset (idx + 1)
 
 get :: Buffer s a -> ST s (A.Array a)
 get (Buffer buffer offset) = do
