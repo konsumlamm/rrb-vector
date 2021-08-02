@@ -46,11 +46,15 @@ library
 test-suite test
   hs-source-dirs:       test
   main-is:              Main.hs
+  other-modules:
+    Arbitrary
+    Properties
+    Strictness
   type:                 exitcode-stdio-1.0
   ghc-options:          -Wall -Wno-orphans -Wno-type-defaults
-  build-depends:        base >= 4.11 && < 5, rrb-vector, tasty, tasty-quickcheck
+  build-depends:        base >= 4.11 && < 5, deepseq, ghc-heap-view, indexed-traversable, rrb-vector, tasty, tasty-quickcheck
   default-language:     Haskell2010
-  default-extensions:   ExtendedDefaultRules, NumericUnderscores
+  default-extensions:   ExtendedDefaultRules, NumericUnderscores, ScopedTypeVariables
 
 benchmark rrb-bench
   hs-source-dirs:       bench
