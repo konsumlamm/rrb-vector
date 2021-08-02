@@ -1,0 +1,18 @@
+name: Haskell CI
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: haskell/actions/setup@v1
+        with:
+          ghc-version: '8.10'
+      - name: Build
+        run: cabal build
+      - name: Test
+        run: cabal test --test-show-details=direct
