@@ -11,7 +11,7 @@ main = defaultMain $ [10, 100, 1_000, 10_000, 100_000] <&> \n ->
     let !v = RRB.fromList [1..n]
         !idx = n `div` 2
     in bgroup (show n)
-    [ bench "fromList" $ whnf RRB.fromList [1..n]
+    [ bench "fromList" $ nf RRB.fromList [1..n]
     , bench "><" $ whnf (\vec -> vec RRB.>< vec) v
     , bench "|>" $ whnf (RRB.|> 42) v
     , bench "<|" $ whnf (42 RRB.<|) v

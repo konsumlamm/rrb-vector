@@ -41,27 +41,27 @@ instance Semigroup (Array a) where
         !len' = len1 + len2
 
 instance Foldable Array where
-    foldr f = \z (Array start len arr) ->
-        let !end = start + len
+    foldr f z (Array start len arr) =
+        let end = start + len
             go i
                 | i == end = z
                 | (# x #) <- indexSmallArray## arr i = f x (go (i + 1))
         in go start
 
-    foldl f = \z (Array start len arr) ->
+    foldl f z (Array start len arr) =
         let go i
                 | i < start = z
                 | (# x #) <- indexSmallArray## arr i = f (go (i - 1)) x
         in go (start + len - 1)
 
-    foldr' f = \z (Array start len arr) ->
+    foldr' f z (Array start len arr) =
         let go i !acc
                 | i < start = acc
                 | (# x #) <- indexSmallArray## arr i = go (i - 1) (f x acc)
         in go (start + len - 1) z
 
-    foldl' f = \z (Array start len arr) ->
-        let !end = start + len
+    foldl' f z (Array start len arr) =
+        let end = start + len
             go i !acc
                 | i == end = acc
                 | (# x #) <- indexSmallArray## arr i = go (i + 1) (f acc x)

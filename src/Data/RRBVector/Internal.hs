@@ -255,10 +255,10 @@ instance Foldable Vector where
     length (Root s _ _) = s
 
 instance FoldableWithIndex Int Vector where
-    ifoldr f z0 v = foldr (\x g !i -> f i x (g (i + 1))) (const z0) v 0
+    ifoldr f z0 v = foldr' (\x g !i -> f i x (g (i + 1))) (const z0) v 0
     {-# INLINE ifoldr #-}
 
-    ifoldl f z0 v = foldl (\g x !i -> f i (g (i - 1)) x) (const z0) v (length v - 1)
+    ifoldl f z0 v = foldl' (\g x !i -> f i (g (i - 1)) x) (const z0) v (length v - 1)
     {-# INLINE ifoldl #-}
 
 instance Functor Vector where
@@ -275,7 +275,7 @@ instance Traversable Vector where
     traverse f (Root size sh tree) = Root size sh <$> traverseTree tree
       where
         traverseTree (Balanced arr) = Balanced <$> A.traverse' traverseTree arr
-        traverseTree (Unbalanced arr sizes) = liftA2 Unbalanced (A.traverse' traverseTree arr) (pure sizes)
+        traverseTree (Unbalanced arr sizes) = flip Unbalanced sizes <$> A.traverse' traverseTree arr
         traverseTree (Leaf arr) = Leaf <$> A.traverse f arr
     {-# INLINE traverse #-}
 
@@ -352,14 +352,16 @@ fromList ls = case nodes Leaf ls of
         buffer <- Buffer.new blockSize
         let loop [] = do
                 result <- Buffer.get buffer
-                pure [f result]
-            loop (t : ts) = t `seq` do
+                let !x = f result
+                pure [x]
+            loop (t : ts) = do
                 size <- Buffer.size buffer
                 if size == blockSize then do
                     result <- Buffer.get buffer
                     Buffer.push buffer t
                     rest <- loop ts
-                    pure (f result : rest)
+                    let !x = f result
+                    pure (x : rest)
                 else do
                     Buffer.push buffer t
                     loop ts
@@ -407,6 +409,7 @@ lookup i (Root size sh tree)
 -- | \(O(\log n)\). The element at the index. Calls 'error' if the index is out of range.
 index :: HasCallStack => Int -> Vector a -> a
 index i = fromMaybe (error "AMT.index: index out of range") . lookup i
+{-# INLINE index #-}
 
 -- | \(O(\log n)\). A flipped version of 'lookup'.
 (!?) :: Vector a -> Int -> Maybe a
