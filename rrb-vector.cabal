@@ -1,5 +1,5 @@
 name:               rrb-vector
-version:            0.1.0.0
+version:            0.1.1.0
 synopsis:           Efficient RRB-Vectors
 description:
   An RRB-Vector is an efficient sequence data structure.
