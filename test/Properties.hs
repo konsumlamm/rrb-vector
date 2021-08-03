@@ -85,7 +85,7 @@ properties = testGroup "properties"
         [ testProperty "satisfies `fromList . toList = id`" $ \v -> V.fromList (toList v) === v
         , testProperty "satisfies `toList . fromList = id`" $ \ls -> toList (V.fromList ls) === ls
         , testProperty "satisfies `fromList [] = empty`" $ V.fromList [] === V.empty
-        , testProperty "satisfies `fromList [x] = singleton x" $ \x -> V.fromList [x] === V.singleton x
+        , testProperty "satisfies `fromList [x] = singleton x`" $ \x -> V.fromList [x] === V.singleton x
         ]
     , testGroup "replicate"
         [ testProperty "satisifes `replicate n == fromList . replicate n`" $ \(Positive n) x -> V.replicate n x === V.fromList (replicate n x)
@@ -157,7 +157,7 @@ properties = testGroup "properties"
         ]
     , testGroup "zipWith"
         [ testProperty "zips two vectors with a function" $ \v1 v2 -> toList (V.zipWith (+) v1 v2) === zipWith (+) (toList v1) (toList v2)
-        , testProperty "satisfies `zipWith (,) v1 v2 = zip v1 v2" $ \v1 v2 -> V.zipWith (,) v1 v2 === V.zip v1 v2
+        , testProperty "satisfies `zipWith (,) v1 v2 = zip v1 v2`" $ \v1 v2 -> V.zipWith (,) v1 v2 === V.zip v1 v2
         ]
     , testGroup "unzip"
         [ testProperty "unzips the vector" $ \v -> (\(xs, ys) -> (toList xs, toList ys)) (V.unzip v) === unzip (toList v)

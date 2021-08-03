@@ -7,7 +7,7 @@ import Test.Tasty.Bench
 import qualified Data.RRBVector as RRB
 
 main :: IO ()
-main = defaultMain $ [10, 100, 1_000, 10_000, 100_000] <&> \n ->
+main = defaultMain $ [10, 100, 1000, 10000, 100000] <&> \n ->
     let !v = RRB.fromList [1..n]
         !idx = n `div` 2
     in bgroup (show n)

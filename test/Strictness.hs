@@ -1,12 +1,17 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
+
+#define GHC_HEAP_VIEW defined(VERSION_ghc_heap_view)
 
 module Strictness
     ( strictness
     ) where
 
+#if GHC_HEAP_VIEW
 import Control.DeepSeq (deepseq)
-import qualified Data.RRBVector as V
 import GHC.AssertNF (isNF)
+#endif
+import qualified Data.RRBVector as V
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -14,6 +19,7 @@ import Arbitrary ()
 
 default (Int)
 
+#if GHC_HEAP_VIEW
 testNF :: a -> Property
 testNF !x = ioProperty (isNF x)
 
@@ -26,9 +32,11 @@ initVector :: V.Vector a -> Maybe (V.Vector a)
 initVector v = case V.viewr v of
     Nothing -> Nothing
     Just (xs, _) -> Just xs
+#endif
 
 strictness :: TestTree
 strictness = testGroup "strictness"
+#if GHC_HEAP_VIEW
     [ testGroup "nf"
         [ testProperty "empty" $ testNF V.empty
         , testProperty "singleton" $ testNF (V.singleton 42)
@@ -49,6 +57,9 @@ strictness = testGroup "strictness"
         , testProperty "reverse" $ \v -> v `deepseq` testNF (V.reverse v)
         ]
     , testGroup "bottom"
+#else
+    [ testGroup "bottom"
+#endif
         [ testProperty "singleton" $ V.singleton undefined `seq` ()
         , testProperty "fromList" $ \n -> V.fromList (replicate n undefined) `seq` ()
         , testProperty "replicate" $ \n -> V.replicate n undefined `seq` ()

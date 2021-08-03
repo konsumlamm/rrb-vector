@@ -52,9 +52,11 @@ test-suite test
     Strictness
   type:                 exitcode-stdio-1.0
   ghc-options:          -Wall -Wno-orphans -Wno-type-defaults
-  build-depends:        base >= 4.11 && < 5, deepseq, ghc-heap-view, indexed-traversable, rrb-vector, tasty, tasty-quickcheck
+  build-depends:        base >= 4.11 && < 5, deepseq, indexed-traversable, rrb-vector, tasty, tasty-quickcheck
+  if impl(ghc == 8.10.*)
+    build-depends:      ghc-heap-view
   default-language:     Haskell2010
-  default-extensions:   ExtendedDefaultRules, NumericUnderscores, ScopedTypeVariables
+  default-extensions:   ExtendedDefaultRules, ScopedTypeVariables
 
 benchmark rrb-bench
   hs-source-dirs:       bench
@@ -63,4 +65,4 @@ benchmark rrb-bench
   default-language:     Haskell2010
   ghc-options:          -O2
   build-depends:        base >= 4.11 && < 5, rrb-vector, tasty-bench
-  default-extensions:   ExtendedDefaultRules, NumericUnderscores
+  default-extensions:   ExtendedDefaultRules

@@ -7,11 +7,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ghc: ['8.4.4', '8.6.5', '8.8.4', '8.10.5', '9.0.1']
     steps:
       - uses: actions/checkout@v2
       - uses: haskell/actions/setup@v1
         with:
-          ghc-version: '8.10'
+          ghc-version: ${{ matrix.ghc }}
       - name: Build
         run: cabal build
       - name: Test
