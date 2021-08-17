@@ -408,7 +408,7 @@ lookup i (Root size sh tree)
 
 -- | \(O(\log n)\). The element at the index. Calls 'error' if the index is out of range.
 index :: HasCallStack => Int -> Vector a -> a
-index i = fromMaybe (error "AMT.index: index out of range") . lookup i
+index i = fromMaybe (error "index out of range") . lookup i
 {-# INLINE index #-}
 
 -- | \(O(\log n)\). A flipped version of 'lookup'.
