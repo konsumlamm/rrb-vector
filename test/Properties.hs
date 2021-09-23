@@ -19,6 +19,8 @@ default (Int)
 
 type V = V.Vector
 
+-- List equivalents of @Data.RRBVector@ functions
+
 lookupList :: Int -> [a] -> Maybe a
 lookupList i ls
     | i < length ls = Just (ls !! i)
