@@ -8,7 +8,7 @@ module Data.RRBVector.Internal
     ( Vector(..)
     , Tree(..)
     -- * Internal
-    , blockShift, blockSize, treeSize, computeSizes, up
+    , blockShift, blockSize, treeSize, computeSizes, up, down
     -- * Construction
     , empty, singleton, fromList, replicate
     -- ** Concatenation
@@ -395,7 +395,7 @@ replicate n x
 
 -- | \(O(\log n)\). The element at the index or 'Nothing' if the index is out of range.
 lookup :: Int -> Vector a -> Maybe a
-lookup _ Empty = Nothing
+lookup !_ Empty = Nothing
 lookup i (Root size sh tree)
     | i < 0 || i >= size = Nothing  -- index out of range
     | otherwise = Just $ lookupTree i sh tree
@@ -405,6 +405,7 @@ lookup i (Root size sh tree)
         let (idx, subIdx) = relaxedRadixIndex sizes i sh
         in lookupTree subIdx (down sh) (A.index arr idx)
     lookupTree i _ (Leaf arr) = A.index arr (i .&. blockMask)
+{-# INLINE lookup #-}
 
 -- | \(O(\log n)\). The element at the index. Calls 'error' if the index is out of range.
 index :: HasCallStack => Int -> Vector a -> a
@@ -414,15 +415,17 @@ index i = fromMaybe (error "index out of range") . lookup i
 -- | \(O(\log n)\). A flipped version of 'lookup'.
 (!?) :: Vector a -> Int -> Maybe a
 (!?) = flip lookup
+{-# INLINE (!?) #-}
 
 -- | \(O(\log n)\). A flipped version of 'index'.
 (!) :: HasCallStack => Vector a -> Int -> a
 (!) = flip index
+{-# INLINE (!) #-}
 
 -- | \(O(\log n)\). Update the element at the index with a new element.
 -- If the index is out of range, the original vector is returned.
 update :: Int -> a -> Vector a -> Vector a
-update _ _ Empty = Empty
+update !_ _ Empty = Empty
 update i x v@(Root size sh tree)
     | i < 0 || i >= size = v  -- index out of range
     | otherwise = Root size sh (adjustTree i sh tree)
@@ -436,7 +439,7 @@ update i x v@(Root size sh tree)
 -- | \(O(\log n)\). Adjust the element at the index by applying the function to it.
 -- If the index is out of range, the original vector is returned.
 adjust :: Int -> (a -> a) -> Vector a -> Vector a
-adjust _ _ Empty = Empty
+adjust !_ _ Empty = Empty
 adjust i f v@(Root size sh tree)
     | i < 0 || i >= size = v  -- index out of range
     | otherwise = Root size sh (adjustTree i sh tree)
@@ -449,7 +452,7 @@ adjust i f v@(Root size sh tree)
 
 -- | \(O(\log n)\). Like 'adjust', but the result of the function is forced.
 adjust' :: Int -> (a -> a) -> Vector a -> Vector a
-adjust' _ _ Empty = Empty
+adjust' !_ _ Empty = Empty
 adjust' i f v@(Root size sh tree)
     | i < 0 || i >= size = v  -- index out of range
     | otherwise = Root size sh (adjustTree i sh tree)
@@ -524,14 +527,36 @@ viewr v@(Root size _ tree) = let !init = take (size - 1) v in Just (init, lastTr
     lastTree (Unbalanced arr _) = lastTree (A.last arr)
     lastTree (Leaf arr) = A.last arr
 
+-- | \(O(\log n)\). The first @i@ elements of the vector.
+-- If @i@ is negative, the empty vector is returned. If the vector contains less than @i@ elements, the whole vector is returned.
+take :: Int -> Vector a -> Vector a
+take !_ Empty = Empty
+take n v@(Root size sh tree)
+    | n <= 0 = empty
+    | n >= size = v
+    | otherwise = normalize $ Root n sh (takeTree (n - 1) sh tree)
+
+-- | \(O(\log n)\). The vector without the first @i@ elements
+-- If @i@ is negative, the whole vector is returned. If the vector contains less than @i@ elements, the empty vector is returned.
+drop :: Int -> Vector a -> Vector a
+drop !_ Empty = Empty
+drop n v@(Root size sh tree)
+    | n <= 0 = v
+    | n >= size = empty
+    | otherwise = normalize $ Root (size - n) sh (dropTree n sh tree)
+
 -- | \(O(\log n)\). Split the vector at the given index.
 --
 -- > splitAt n v = (take n v, drop n v)
 splitAt :: Int -> Vector a -> (Vector a, Vector a)
-splitAt n v =
-    let !left = take n v
-        !right = drop n v
-    in (left, right)
+splitAt !_ Empty = (Empty, Empty)
+splitAt n v@(Root size sh tree)
+    | n <= 0 = (empty, v)
+    | n >= size = (v, empty)
+    | otherwise =
+        let !left = normalize $ Root n sh (takeTree (n - 1) sh tree)
+            !right = normalize $ Root (size - n) sh (dropTree n sh tree)
+        in (left, right)
 
 -- | \(O(\log n)\). Insert an element at the given index.
 insertAt :: Int -> a -> Vector a -> Vector a
@@ -562,7 +587,7 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
         | length arr1 == blockSize = A.from2 tree1 tree2
         | length arr1 + length arr2 <= blockSize = A.singleton $! Leaf (arr1 <> arr2)
         | otherwise =
-            let (left, right) = A.splitAt (arr1 <> arr2) blockSize
+            let (left, right) = A.splitAt (arr1 <> arr2) blockSize -- 'A.splitAt' doesn't copy anything
                 !leftTree = Leaf left
                 !rightTree = Leaf right
             in A.from2 leftTree rightTree
@@ -707,44 +732,28 @@ newBranch x = go
 
 -- splitting
 
--- | \(O(\log n)\). The first @i@ elements of the vector.
--- If @i@ is negative, the empty vector is returned. If the vector contains less than @i@ elements, the whole vector is returned.
-take :: Int -> Vector a -> Vector a
-take _ Empty = Empty
-take n v@(Root size sh tree)
-    | n <= 0 = empty
-    | n >= size = v
-    | otherwise = normalize $ Root n sh (takeTree (n - 1) sh tree)
-  where
-    -- the initial @i@ is @n - 1@ -- the index of the last element in the new tree
-    takeTree i sh (Balanced arr) =
-        let idx = radixIndex i sh
-            newArr = A.take arr (idx + 1)
-        in Balanced (A.adjust' newArr idx (takeTree i (down sh)))
-    takeTree i sh (Unbalanced arr sizes) =
-        let (idx, subIdx) = relaxedRadixIndex sizes i sh
-            newArr = A.take arr (idx + 1)
-        in computeSizes sh (A.adjust' newArr idx (takeTree subIdx (down sh)))
-    takeTree i _ (Leaf arr) = Leaf (A.take arr ((i .&. blockMask) + 1))
+-- the initial @i@ is @n - 1@ -- the index of the last element in the new tree
+takeTree :: Int -> Shift -> Tree a -> Tree a
+takeTree i sh (Balanced arr) =
+    let idx = radixIndex i sh
+        newArr = A.take arr (idx + 1)
+    in Balanced (A.adjust' newArr idx (takeTree i (down sh)))
+takeTree i sh (Unbalanced arr sizes) =
+    let (idx, subIdx) = relaxedRadixIndex sizes i sh
+        newArr = A.take arr (idx + 1)
+    in computeSizes sh (A.adjust' newArr idx (takeTree subIdx (down sh)))
+takeTree i _ (Leaf arr) = Leaf (A.take arr ((i .&. blockMask) + 1))
 
--- | \(O(\log n)\). The vector without the first @i@ elements
--- If @i@ is negative, the whole vector is returned. If the vector contains less than @i@ elements, the empty vector is returned.
-drop :: Int -> Vector a -> Vector a
-drop _ Empty = Empty
-drop n v@(Root size sh tree)
-    | n <= 0 = v
-    | n >= size = empty
-    | otherwise = normalize $ Root (size - n) sh (dropTree n sh tree)
-  where
-    dropTree n sh (Balanced arr) =
-        let idx = radixIndex n sh
-            newArr = A.drop arr idx
-        in computeSizes sh (A.adjust' newArr 0 (dropTree n (down sh)))
-    dropTree n sh (Unbalanced arr sizes) =
-        let (idx, subIdx) = relaxedRadixIndex sizes n sh
-            newArr = A.drop arr idx
-        in computeSizes sh (A.adjust' newArr 0 (dropTree subIdx (down sh)))
-    dropTree n _ (Leaf arr) = Leaf (A.drop arr (n .&. blockMask))
+dropTree :: Int -> Shift -> Tree a -> Tree a
+dropTree n sh (Balanced arr) =
+    let idx = radixIndex n sh
+        newArr = A.drop arr idx
+    in computeSizes sh (A.adjust' newArr 0 (dropTree n (down sh)))
+dropTree n sh (Unbalanced arr sizes) =
+    let (idx, subIdx) = relaxedRadixIndex sizes n sh
+        newArr = A.drop arr idx
+    in computeSizes sh (A.adjust' newArr 0 (dropTree subIdx (down sh)))
+dropTree n _ (Leaf arr) = Leaf (A.drop arr (n .&. blockMask))
 
 normalize :: Vector a -> Vector a
 normalize (Root size sh (Balanced arr))

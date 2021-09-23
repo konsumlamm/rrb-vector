@@ -3,7 +3,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
 
+-- | This is an internal module.
+--
 -- Warning: No bound checks are performed!
+--
+-- This module provides a thin wrapper over 'Data.Primitive.SmallArray'
+-- with \(O(1)\) slicing.
 
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
