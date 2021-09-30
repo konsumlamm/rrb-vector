@@ -6,6 +6,8 @@ import Test.Tasty.Bench
 
 import qualified Data.RRBVector as RRB
 
+default (Int)
+
 main :: IO ()
 main = defaultMain $ [10, 100, 1000, 10000, 100000] <&> \n ->
     let !v = RRB.fromList [1..n]
@@ -19,6 +21,7 @@ main = defaultMain $ [10, 100, 1000, 10000, 100000] <&> \n ->
     , bench "drop" $ whnf (RRB.drop idx) v
     , bench "index" $ nf (RRB.lookup idx) v
     , bench "adjust" $ whnf (RRB.adjust idx (+ 1)) v
+    , bench "map" $ whnf (RRB.map (+ 1)) v
     , bench "foldl" $ nf (foldl (+) 0) v
     , bench "foldr" $ nf (foldr (+) 0) v
     ]
