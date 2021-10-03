@@ -486,7 +486,7 @@ reverse = fromList . foldl' (flip (:)) [] -- convert the vector to a reverse lis
 --
 -- > zip = zipWith (,)
 zip :: Vector a -> Vector b -> Vector (a, b)
-zip = zipWith (,)
+zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 
 -- | \(O(\min(n_1, n_2))\). 'zipWith' generalizes 'zip' by zipping with the function.
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
@@ -497,10 +497,16 @@ zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 -- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
 -- (fromList [1,2,3],fromList ["a","b","c"])
 unzip :: Vector (a, b) -> (Vector a, Vector b)
-unzip v =
-    let !left = map fst v
-        !right = map snd v
-    in (left, right)
+unzip Empty = (Empty, Empty)
+unzip (Root size sh tree) = case unzipTree tree of
+    (!left, !right) -> (Root size sh left, Root size sh right)
+  where
+    unzipTree (Balanced arr) = case A.unzipWith unzipTree arr of
+        (!left, !right) -> (Balanced left, Balanced right)
+    unzipTree (Unbalanced arr sizes) = case A.unzipWith unzipTree arr of
+        (!left, !right) -> (Unbalanced left sizes, Unbalanced right sizes)
+    unzipTree (Leaf arr) = case A.unzipWith id arr of
+        (!left, !right) -> (Leaf left, Leaf right)
 
 -- | \(O(\log n)\). The first element and the vector without the first element, or 'Nothing' if the vector is empty.
 --

@@ -55,6 +55,8 @@ strictness = testGroup "strictness"
         , testProperty "viewl (tail)" $ \v -> v `deepseq` testNF (tailVector v)
         , testProperty "viewr (init)" $ \v -> v `deepseq` testNF (initVector v)
         , testProperty "reverse" $ \v -> v `deepseq` testNF (V.reverse v)
+        , testProperty "zip" $ \v1 v2 -> v1 `deepseq` v2 `deepseq` testNF (V.zip v1 v2)
+        , testProperty "unzip" $ \v -> v `deepseq` testNF (V.unzip v)
         ]
     , testGroup "bottom"
 #else
@@ -69,5 +71,6 @@ strictness = testGroup "strictness"
         , testProperty "adjust" $ \v i -> V.adjust i (const undefined) v `seq` ()
         , testProperty "insertAt" $ \v i -> V.insertAt i undefined v `seq` ()
         , testProperty "map" $ \v -> V.map (const undefined) v `seq` ()
+        , testProperty "zipWith" $ \v1 v2 -> V.zipWith (\_ _ -> undefined) v1 v2 `seq` ()
         ]
     ]

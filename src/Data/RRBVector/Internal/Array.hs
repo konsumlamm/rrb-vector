@@ -19,6 +19,7 @@ module Data.RRBVector.Internal.Array
     , take, drop, splitAt
     , snoc, cons
     , map, map'
+    , unzipWith
     , traverse, traverse'
     , new, read, write
     , freeze, thaw
@@ -30,7 +31,7 @@ import Control.Monad (when)
 import Control.Monad.ST
 import Data.Foldable (Foldable(..))
 import Data.Primitive.SmallArray
-import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read)
+import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read, unzip)
 
 -- start length array
 data Array a = Array !Int !Int !(SmallArray a)
@@ -181,6 +182,22 @@ map' f (Array start len arr) = Array 0 len $ runSmallArray $ do
             loop (i + 1) (j + 1)
     loop start 0
     pure sma
+
+unzipWith :: (a -> (b, c)) -> Array a -> (Array b, Array c)
+unzipWith f (Array start len arr) = runST $ do
+    sma1 <- newSmallArray len uninitialized
+    sma2 <- newSmallArray len uninitialized
+    -- i is the index in arr, j is the index in sma1/sma2
+    let loop i j = when (j < len) $ do
+            val <- indexSmallArrayM arr i
+            let !(x, y) = f val
+            writeSmallArray sma1 j x
+            writeSmallArray sma2 j y
+            loop (i + 1) (j + 1)
+    loop start 0
+    arr1 <- unsafeFreezeSmallArray sma1
+    arr2 <- unsafeFreezeSmallArray sma2
+    pure (Array 0 len arr1, Array 0 len arr2)
 
 newtype STA a = STA (forall s. SmallMutableArray s a -> ST s (SmallArray a))
 
