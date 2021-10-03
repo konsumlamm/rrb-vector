@@ -55,7 +55,7 @@ import Data.Functor.WithIndex
 import Data.Foldable.WithIndex
 import Data.Traversable.WithIndex
 
-import Data.Primitive.PrimArray
+import Data.Primitive.PrimArray hiding (sizeofPrimArray) -- use @length@ of the @A.Array@ instead
 import qualified Data.RRBVector.Internal.Array as A
 import qualified Data.RRBVector.Internal.Buffer as Buffer
 import Data.RRBVector.Internal.Indexed
@@ -66,9 +66,10 @@ infixl 5 |>
 
 type Shift = Int
 
--- Invariant: Children of a Balanced node are always balanced.
--- A Leaf node is considered balanced.
+-- Invariants:
+-- Children of a Balanced node are always balanced (a Leaf node is considered balanced).
 -- Nodes are always non-empty.
+-- The two arrays in an Unbalanced node always have the same size.
 data Tree a
     = Balanced {-# UNPACK #-} !(A.Array (Tree a))
     | Unbalanced {-# UNPACK #-} !(A.Array (Tree a)) !(PrimArray Int)
@@ -131,7 +132,7 @@ treeSize :: Shift -> Tree a -> Int
 treeSize = go 0
   where
     go !acc !_ (Leaf arr) = acc + length arr
-    go acc _ (Unbalanced _ sizes) = acc + indexPrimArray sizes (sizeofPrimArray sizes - 1)
+    go acc _ (Unbalanced arr sizes) = acc + indexPrimArray sizes (length arr - 1)
     go acc sh (Balanced arr) =
         let i = length arr - 1
         in go (acc + i * (1 `unsafeShiftL` sh)) (down sh) (A.index arr i)
@@ -352,16 +353,14 @@ fromList ls = case nodes Leaf ls of
         buffer <- Buffer.new blockSize
         let loop [] = do
                 result <- Buffer.get buffer
-                let !x = f result
-                pure [x]
+                pure [f result]
             loop (t : ts) = do
                 size <- Buffer.size buffer
                 if size == blockSize then do
                     result <- Buffer.get buffer
                     Buffer.push buffer t
                     rest <- loop ts
-                    let !x = f result
-                    pure (x : rest)
+                    pure (f result : rest)
                 else do
                     Buffer.push buffer t
                     loop ts
@@ -428,13 +427,13 @@ update :: Int -> a -> Vector a -> Vector a
 update !_ _ Empty = Empty
 update i x v@(Root size sh tree)
     | i < 0 || i >= size = v  -- index out of range
-    | otherwise = Root size sh (adjustTree i sh tree)
+    | otherwise = Root size sh (updateTree i sh tree)
   where
-    adjustTree i sh (Balanced arr) = Balanced (A.adjust' arr (radixIndex i sh) (adjustTree i (down sh)))
-    adjustTree i sh (Unbalanced arr sizes) =
+    updateTree i sh (Balanced arr) = Balanced (A.adjust' arr (radixIndex i sh) (updateTree i (down sh)))
+    updateTree i sh (Unbalanced arr sizes) =
         let (idx, subIdx) = relaxedRadixIndex sizes i sh
-        in Unbalanced (A.adjust' arr idx (adjustTree subIdx (down sh))) sizes
-    adjustTree i _ (Leaf arr) = Leaf (A.update arr (i .&. blockMask) x)
+        in Unbalanced (A.adjust' arr idx (updateTree subIdx (down sh))) sizes
+    updateTree i _ (Leaf arr) = Leaf (A.update arr (i .&. blockMask) x)
 
 -- | \(O(\log n)\). Adjust the element at the index by applying the function to it.
 -- If the index is out of range, the original vector is returned.
@@ -691,21 +690,20 @@ Root size sh tree |> x
         | sh == insertShift = Unbalanced (A.snoc arr $! newBranch x (down sh)) newSizesSnoc
         | otherwise = Unbalanced (A.adjust' arr (length arr - 1) (snocTree (down sh))) newSizesAdjust
       where
+        len = length arr
         -- snoc the last size + 1
         newSizesSnoc = runST $ do
-            let lenSizes = sizeofPrimArray sizes
-            newArr <- newPrimArray (lenSizes + 1)
-            copyPrimArray newArr 0 sizes 0 lenSizes
-            let lastSize = indexPrimArray sizes (lenSizes - 1)
-            writePrimArray newArr lenSizes (lastSize + 1)
+            newArr <- newPrimArray (len + 1)
+            copyPrimArray newArr 0 sizes 0 len
+            let lastSize = indexPrimArray sizes (len - 1)
+            writePrimArray newArr len (lastSize + 1)
             unsafeFreezePrimArray newArr
         -- adjust the last size with (+ 1)
         newSizesAdjust = runST $ do
-            let lenSizes = sizeofPrimArray sizes
-            newArr <- newPrimArray lenSizes
-            copyPrimArray newArr 0 sizes 0 lenSizes
-            let lastSize = indexPrimArray sizes (lenSizes - 1)
-            writePrimArray newArr (lenSizes - 1) (lastSize + 1)
+            newArr <- newPrimArray len
+            copyPrimArray newArr 0 sizes 0 len
+            let lastSize = indexPrimArray sizes (len - 1)
+            writePrimArray newArr (len - 1) (lastSize + 1)
             unsafeFreezePrimArray newArr
     snocTree _ (Leaf arr) = Leaf $ A.snoc arr x
 
@@ -717,7 +715,7 @@ Root size sh tree |> x
         let newShift = (countTrailingZeros sz `div` blockShift) * blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
-        let lastIdx = sizeofPrimArray sizes - 1
+        let lastIdx = length arr - 1
             sz' = indexPrimArray sizes lastIdx - indexPrimArray sizes (lastIdx - 1) -- the size of the last subtree
             newMin = if length arr < blockSize then sh else min
         in computeShift sz' (down sh) newMin (A.last arr)

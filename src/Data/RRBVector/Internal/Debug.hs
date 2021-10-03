@@ -10,7 +10,7 @@ module Data.RRBVector.Internal.Debug
 import Control.Monad.ST (runST)
 import Data.Foldable (toList)
 import Data.List (intercalate)
-import Data.Primitive (primArrayToList)
+import Data.Primitive.PrimArray (primArrayToList)
 
 import Data.RRBVector.Internal
 import qualified Data.RRBVector.Internal.Buffer as Buffer
