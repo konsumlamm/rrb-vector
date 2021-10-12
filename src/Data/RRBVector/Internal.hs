@@ -44,6 +44,7 @@ import Data.Foldable (Foldable(..), for_)
 import Data.Functor.Classes
 import Data.Functor.Identity (Identity(..))
 import qualified Data.List as List
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (fromMaybe)
 import Data.Semigroup
 import qualified GHC.Exts as Exts
@@ -190,6 +191,9 @@ instance (Read a) => Read (Vector a) where
     readListPrec = readListPrecDefault
 
 instance Eq1 Vector where
+    liftEq _ Empty Empty = True
+    liftEq _ Empty _ = False
+    liftEq _ _ Empty = False
     liftEq f v1 v2 = length v1 == length v2 && liftEq f (toList v1) (toList v2)
 
 instance (Eq a) => Eq (Vector a) where
@@ -203,10 +207,12 @@ instance (Ord a) => Ord (Vector a) where
 
 instance Semigroup (Vector a) where
     (<>) = (><)
+    sconcat (v :| vs) = v >< mconcat vs
     stimes = stimesMonoid
 
 instance Monoid (Vector a) where
     mempty = empty
+    mconcat = foldl' (><) empty
 
 instance Foldable Vector where
     foldr f acc = go
@@ -295,6 +301,7 @@ instance Applicative Vector where
 
 instance Monad Vector where
     xs >>= f = foldl' (\acc x -> acc >< f x) empty xs
+    (>>) = (*>)
 
 instance Alternative Vector where
     empty = empty
@@ -306,7 +313,9 @@ instance MonadFail Vector where
     fail _ = empty
 
 instance MonadFix Vector where
-    mfix f = fromList $ fmap (\i -> let x = index i (f x) in x) [0..length (f err) - 1]
+    mfix f = case f err of
+        Empty -> Empty
+        Root size _ _ -> fromList $ fmap (\i -> let x = f x ! i in x) [0..size - 1]
       where
         err = error "mfix for Data.RRBVector.Vector applied to strict function"
 
@@ -479,12 +488,12 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
 -- >>> reverse (fromList [1, 2, 3])
 -- fromList [3,2,1]
 reverse :: Vector a -> Vector a
-reverse = fromList . foldl' (flip (:)) [] -- convert the vector to a reverse list and then rebuild
+reverse v
+    | length v <= 1 = v
+    | otherwise = fromList (foldl' (flip (:)) [] v) -- convert the vector to a reverse list and then rebuild
 
 -- | \(O(\min(n_1, n_2))\). Take two vectors and return a vector of corresponding pairs.
 -- If one input is longer, excess elements are discarded from the right end.
---
--- > zip = zipWith (,)
 zip :: Vector a -> Vector b -> Vector (a, b)
 zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 
@@ -590,9 +599,9 @@ Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
   where
     mergeTrees tree1@(Leaf arr1) !_ tree2@(Leaf arr2) !_
         | length arr1 == blockSize = A.from2 tree1 tree2
-        | length arr1 + length arr2 <= blockSize = A.singleton $! Leaf (arr1 <> arr2)
+        | length arr1 + length arr2 <= blockSize = A.singleton $! Leaf (arr1 A.++ arr2)
         | otherwise =
-            let (left, right) = A.splitAt (arr1 <> arr2) blockSize -- 'A.splitAt' doesn't copy anything
+            let (left, right) = A.splitAt (arr1 A.++ arr2) blockSize -- 'A.splitAt' doesn't copy anything
                 !leftTree = Leaf left
                 !rightTree = Leaf right
             in A.from2 leftTree rightTree

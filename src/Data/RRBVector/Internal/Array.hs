@@ -17,7 +17,7 @@ module Data.RRBVector.Internal.Array
     , index, head, last
     , update, adjust, adjust'
     , take, drop, splitAt
-    , snoc, cons
+    , snoc, cons, (++)
     , map, map'
     , unzipWith
     , traverse, traverse'
@@ -31,20 +31,11 @@ import Control.Monad (when)
 import Control.Monad.ST
 import Data.Foldable (Foldable(..))
 import Data.Primitive.SmallArray
-import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read, unzip)
+import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read, unzip, (++))
 
 -- start length array
 data Array a = Array !Int !Int !(SmallArray a)
 data MutableArray s a = MutableArray !Int !Int !(SmallMutableArray s a)
-
-instance Semigroup (Array a) where
-    Array start1 len1 arr1 <> Array start2 len2 arr2 = Array 0 len' $ runSmallArray $ do
-        sma <- newSmallArray len' uninitialized
-        copySmallArray sma 0 arr1 start1 len1
-        copySmallArray sma len1 arr2 start2 len2
-        pure sma
-      where
-        !len' = len1 + len2
 
 instance Foldable Array where
     foldr f z (Array start len arr) =
@@ -160,6 +151,15 @@ cons (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
     pure sma
   where
     !len' = len + 1
+
+(++) :: Array a -> Array a -> Array a
+Array start1 len1 arr1 ++ Array start2 len2 arr2 = Array 0 len' $ runSmallArray $ do
+    sma <- newSmallArray len' uninitialized
+    copySmallArray sma 0 arr1 start1 len1
+    copySmallArray sma len1 arr2 start2 len2
+    pure sma
+  where
+    !len' = len1 + len2
 
 map :: (a -> b) -> Array a -> Array b
 map f (Array start len arr) = Array 0 len $ runSmallArray $ do
