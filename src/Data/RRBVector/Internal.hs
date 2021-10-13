@@ -42,7 +42,6 @@ import Control.Monad.Zip (MonadZip(..))
 import Data.Bits
 import Data.Foldable (Foldable(..), for_)
 import Data.Functor.Classes
-import Data.Functor.Identity (Identity(..))
 import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (fromMaybe)
@@ -59,7 +58,6 @@ import Data.Traversable.WithIndex
 import Data.Primitive.PrimArray hiding (sizeofPrimArray) -- use @length@ of the @A.Array@ instead
 import qualified Data.RRBVector.Internal.Array as A
 import qualified Data.RRBVector.Internal.Buffer as Buffer
-import Data.RRBVector.Internal.Indexed
 
 infixr 5 ><
 infixr 5 <|
@@ -262,20 +260,59 @@ instance Foldable Vector where
     length (Root s _ _) = s
 
 instance FoldableWithIndex Int Vector where
-    ifoldr f z0 v = foldr' (\x g !i -> f i x (g (i + 1))) (const z0) v 0
+    -- TODO: ifoldMap?
+
+    ifoldr f acc = go
+      where
+        go Empty = acc
+        go (Root _ sh tree) = ifoldrTree 0 sh tree acc
+
+        ifoldrTree !i !sh (Balanced arr) acc' = A.ifoldrStep i (treeSize (down sh)) (flip ifoldrTree (down sh)) acc' arr
+        ifoldrTree i sh (Unbalanced arr _) acc' = A.ifoldrStep i (treeSize (down sh)) (flip ifoldrTree (down sh)) acc' arr
+        ifoldrTree i _ (Leaf arr) acc' = A.ifoldrStep i (\_ -> 1) f acc' arr
     {-# INLINE ifoldr #-}
 
-    ifoldl f z0 v = foldl' (\g x !i -> f i (g (i - 1)) x) (const z0) v (length v - 1)
+    ifoldl f acc = go
+      where
+        go Empty = acc
+        go (Root size sh tree) = ifoldlTree (size - 1) sh acc tree
+
+        ifoldlTree !i !sh acc' (Balanced arr) = A.ifoldlStep i (treeSize (down sh)) (flip ifoldlTree (down sh)) acc' arr
+        ifoldlTree i sh acc' (Unbalanced arr _) = A.ifoldlStep i (treeSize (down sh)) (flip ifoldlTree (down sh)) acc' arr
+        ifoldlTree i _ acc' (Leaf arr) = A.ifoldlStep i (\_ -> 1) f acc' arr
     {-# INLINE ifoldl #-}
+
+    ifoldr' f acc = go
+      where
+        go Empty = acc
+        go (Root size sh tree) = ifoldrTree' (size - 1) sh tree acc
+
+        ifoldrTree' !i !sh (Balanced arr) acc' = A.ifoldrStep' i (treeSize (down sh)) (flip ifoldrTree' (down sh)) acc' arr
+        ifoldrTree' i sh (Unbalanced arr _) acc' = A.ifoldrStep' i (treeSize (down sh)) (flip ifoldrTree' (down sh)) acc' arr
+        ifoldrTree' i _ (Leaf arr) acc' = A.ifoldrStep' i (\_ -> 1) f acc' arr
+    {-# INLINE ifoldr' #-}
+
+    ifoldl' f acc = go
+      where
+        go Empty = acc
+        go (Root _ sh tree) = ifoldlTree' 0 sh acc tree
+
+        ifoldlTree' !i !sh acc' (Balanced arr) = A.ifoldlStep' i (treeSize (down sh)) (flip ifoldlTree' (down sh)) acc' arr
+        ifoldlTree' i sh acc' (Unbalanced arr _) = A.ifoldlStep' i (treeSize (down sh)) (flip ifoldlTree' (down sh)) acc' arr
+        ifoldlTree' i _ acc' (Leaf arr) = A.ifoldlStep' i (\_ -> 1) f acc' arr
+    {-# INLINE ifoldl' #-}
 
 instance Functor Vector where
     fmap = map
     x <$ v = replicate (length v) x
 
 instance FunctorWithIndex Int Vector where
-    imap f v = runIdentity $ evalIndexed (traverse (Indexed . f') v) 0
+    imap _ Empty = Empty
+    imap f (Root size sh tree) = Root size sh (imapTree 0 sh tree)
       where
-        f' x !i = WithIndex (i + 1) (Identity (f i x))
+        imapTree !i !sh (Balanced arr) = Balanced (A.imapStep' i (treeSize (down sh)) (\i -> imapTree i (down sh)) arr)
+        imapTree i sh (Unbalanced arr sizes) = Unbalanced (A.imapStep' i (treeSize (down sh)) (\i -> imapTree i (down sh)) arr) sizes
+        imapTree i _ (Leaf arr) = Leaf (A.imapStep i (\_ -> 1) f arr)
 
 instance Traversable Vector where
     traverse _ Empty = pure Empty
@@ -287,9 +324,12 @@ instance Traversable Vector where
     {-# INLINE traverse #-}
 
 instance TraversableWithIndex Int Vector where
-    itraverse f v = evalIndexed (traverse (Indexed . f') v) 0
+    itraverse _ Empty = pure Empty
+    itraverse f (Root size sh tree) = Root size sh <$> itraverseTree 0 sh tree
       where
-        f' x !i = WithIndex (i + 1) (f i x)
+        itraverseTree !i !sh (Balanced arr) = Balanced <$> A.itraverseStep' i (treeSize (down sh)) (\i -> itraverseTree i (down sh)) arr
+        itraverseTree i sh (Unbalanced arr sizes) = flip Unbalanced sizes <$> A.itraverseStep' i (treeSize (down sh)) (\i -> itraverseTree i (down sh)) arr
+        itraverseTree i _ (Leaf arr) = Leaf <$> A.itraverseStep i (\_ -> 1) f arr
     {-# INLINE itraverse #-}
 
 instance Applicative Vector where

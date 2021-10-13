@@ -12,6 +12,7 @@
 
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
+    , ifoldrStep, ifoldlStep, ifoldrStep', ifoldlStep'
     , empty, singleton, from2
     , replicate, replicateSnoc
     , index, head, last
@@ -19,8 +20,10 @@ module Data.RRBVector.Internal.Array
     , take, drop, splitAt
     , snoc, cons, (++)
     , map, map'
+    , imapStep, imapStep'
     , unzipWith
     , traverse, traverse'
+    , itraverseStep, itraverseStep'
     , new, read, write
     , freeze, thaw
     ) where
@@ -70,6 +73,36 @@ instance Foldable Array where
 
 instance (NFData a) => NFData (Array a) where
     rnf = foldl' (\_ x -> rnf x) ()
+
+ifoldrStep :: Int -> (a -> Int) -> (Int -> a -> b -> b) -> b -> Array a -> b
+ifoldrStep i0 step f z (Array start len arr) =
+    let end = start + len
+        go !i !j -- i is the index in arr, j is the index for f
+            | i == end = z
+            | (# x #) <- indexSmallArray## arr i = f j x (go (i + 1) (j + step x))
+    in go start i0
+
+ifoldlStep :: Int -> (a -> Int) -> (Int -> b -> a -> b) -> b -> Array a -> b
+ifoldlStep i0 step f z (Array start len arr) =
+    let go !i !j -- i is the index in arr, j is the index for f
+            | i < start = z
+            | (# x #) <- indexSmallArray## arr i = f j (go (i - 1) (j - step x)) x
+    in go (start + len - 1) i0 -- TODO
+
+ifoldrStep' :: Int -> (a -> Int) -> (Int -> a -> b -> b) -> b -> Array a -> b
+ifoldrStep' i0 step f z (Array start len arr) =
+    let go !i !j !acc -- i is the index in arr, j is the index for f
+            | i < start = acc
+            | (# x #) <- indexSmallArray## arr i = go (i - 1) (j - step x) (f j x acc)
+    in go (start + len - 1) i0 z
+
+ifoldlStep' :: Int -> (a -> Int) -> (Int -> b -> a -> b) -> b -> Array a -> b
+ifoldlStep' i0 step f z (Array start len arr) =
+    let end = start + len
+        go !i !j !acc -- i is the index in arr, j is the index for f
+            | i == end = acc
+            | (# x #) <- indexSmallArray## arr i = go (i + 1) (j + step x) (f j acc x)
+    in go start i0 z -- TODO
 
 uninitialized :: a
 uninitialized = errorWithoutStackTrace "uninitialized"
@@ -183,6 +216,30 @@ map' f (Array start len arr) = Array 0 len $ runSmallArray $ do
     loop start 0
     pure sma
 
+-- helper function for implementing imap
+imapStep :: Int -> (a -> Int) -> (Int -> a -> b) -> Array a -> Array b
+imapStep i0 step f (Array start len arr) = Array 0 len $ runSmallArray $ do
+    sma <- newSmallArray len uninitialized
+    -- i is the index in arr, j is the index in sma, k is the index for f
+    let loop !i !j !k = when (j < len) $ do -- TODO: strict enough?
+            x <- indexSmallArrayM arr i
+            writeSmallArray sma j (f k x)
+            loop (i + 1) (j + 1) (k + step x)
+    loop start 0 i0
+    pure sma
+
+-- helper function for implementing imap
+imapStep' :: Int -> (a -> Int) -> (Int -> a -> b) -> Array a -> Array b
+imapStep' i0 step f (Array start len arr) = Array 0 len $ runSmallArray $ do
+    sma <- newSmallArray len uninitialized
+    -- i is the index in arr, j is the index in sma, k is the index for f
+    let loop !i !j !k = when (j < len) $ do
+            x <- indexSmallArrayM arr i
+            writeSmallArray sma j $! f k x
+            loop (i + 1) (j + 1) (k + step x)
+    loop start 0 i0
+    pure sma
+
 unzipWith :: (a -> (b, c)) -> Array a -> (Array b, Array c)
 unzipWith f (Array start len arr) = runST $ do
     sma1 <- newSmallArray len uninitialized
@@ -219,6 +276,24 @@ traverse' f (Array start len arr) =
             | j == len = pure $ STA unsafeFreezeSmallArray
             | (# x #) <- indexSmallArray## arr i = liftA2 (\ !y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
     in runSTA len <$> go start 0
+
+-- helper function for implementing itraverse
+itraverseStep :: (Applicative f) => Int -> (a -> Int) -> (Int -> a -> f b) -> Array a -> f (Array b)
+itraverseStep i0 step f (Array start len arr) =
+    -- i is the index in arr, j is the index in sma, k is the index for f
+    let go !i !j !k
+            | j == len = pure $ STA unsafeFreezeSmallArray
+            | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f k x) (go (i + 1) (j + 1) (k + step x))
+    in runSTA len <$> go start 0 i0
+
+-- helper function for implementing itraverse
+itraverseStep' :: (Applicative f) => Int -> (a -> Int) -> (Int -> a -> f b) -> Array a -> f (Array b)
+itraverseStep' i0 step f (Array start len arr) =
+    -- i is the index in arr, j is the index in sma, k is the index for f
+    let go !i !j !k
+            | j == len = pure $ STA unsafeFreezeSmallArray
+            | (# x #) <- indexSmallArray## arr i = liftA2 (\ !y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f k x) (go (i + 1) (j + 1) (k + step x))
+    in runSTA len <$> go start 0 i0
 
 new :: Int -> ST s (MutableArray s a)
 new len = MutableArray 0 len <$> newSmallArray len uninitialized

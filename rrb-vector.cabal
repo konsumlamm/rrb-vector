@@ -37,7 +37,6 @@ library
     Data.RRBVector.Internal
     Data.RRBVector.Internal.Array
     Data.RRBVector.Internal.Buffer
-    Data.RRBVector.Internal.Indexed
     Data.RRBVector.Internal.IntRef
   build-depends:        base >= 4.11 && < 5, deepseq ^>= 1.4.3, indexed-traversable ^>= 0.1, primitive ^>= 0.7
   ghc-options:          -O2 -Wall -Wno-name-shadowing

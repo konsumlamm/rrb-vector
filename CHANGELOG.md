@@ -1,3 +1,8 @@
+# latest
+
+* Make various functions strict in the index
+* Make the `FoldableWithIndex`, `FunctorWithIndex`, `TraversableWithIndex` instances more efficient
+
 # 0.1.1.0 - August 2021
 
 * Add `replicate`

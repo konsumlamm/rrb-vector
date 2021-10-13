@@ -2,7 +2,8 @@ module Properties
     ( properties
     ) where
 
-import Data.Foldable (toList)
+import Data.Foldable
+import Data.Functor.Identity
 import Data.List (uncons)
 import Prelude hiding ((==)) -- use @===@ instead
 
@@ -53,10 +54,14 @@ instances = testGroup "instances"
     [ testGroup "Foldable"
         [ testProperty "foldr" $ \(v :: V Int) -> foldr (:) [] v === foldr (:) [] (toList v)
         , testProperty "foldl" $ \(v :: V Int) -> foldl (flip (:)) [] v === foldl (flip (:)) [] (toList v)
+        , testProperty "foldr'" $ \(v :: V Int) -> foldr' (:) [] v === foldr' (:) [] (toList v)
+        , testProperty "foldl'" $ \(v :: V Int) -> foldl' (flip (:)) [] v === foldl' (flip (:)) [] (toList v)
         ]
     , testGroup "FoldableWithIndex"
         [ testProperty "ifoldr" $ \(v :: V Int) -> ifoldr (\i x acc -> (i, x) : acc) [] v === ifoldr (\i x acc -> (i, x) : acc) [] (toList v)
         , testProperty "ifoldl" $ \(v :: V Int) -> ifoldl (\i acc x -> (i, x) : acc) [] v === ifoldl (\i acc x -> (i, x) : acc)  [] (toList v)
+        , testProperty "ifoldr'" $ \(v :: V Int) -> ifoldr' (\i x acc -> (i, x) : acc) [] v === ifoldr' (\i x acc -> (i, x) : acc) [] (toList v)
+        , testProperty "ifoldl'" $ \(v :: V Int) -> ifoldl' (\i acc x -> (i, x) : acc) [] v === ifoldl' (\i acc x -> (i, x) : acc)  [] (toList v)
         , testProperty "satisfies `ifoldr (const f) x v = foldr f x v`" $
             \(v :: V Int) -> ifoldr (const (:)) [] v === foldr (:) [] v
         , testProperty "satisfies `ifoldl (const f) x v = foldl f x v`" $
@@ -78,6 +83,8 @@ instances = testGroup "instances"
             \(v :: V Int) -> fmap toList (itraverse (\i x -> Just (i + x)) v) === itraverse (\i x -> Just (i + x)) (toList v)
         , testProperty "satisfies `itraverse (const f) v = traverse f v`" $
             \(v :: V Int) -> itraverse (const (Just . (+ 1))) v === traverse (Just . (+ 1)) v
+        , testProperty "satisfies `runIdentity (itraverse (\\i x -> Identity (f i x)) v) = imap f v`" $
+            \(v :: V Int) -> runIdentity (itraverse (\i x -> Identity (i, x)) v) === imap (,) v
         ]
     ]
 
