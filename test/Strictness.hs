@@ -54,6 +54,7 @@ strictness = testGroup "strictness"
         , testProperty "deleteAt" $ \v i -> v `deepseq` testNF (V.deleteAt i v)
         , testProperty "viewl (tail)" $ \v -> v `deepseq` testNF (tailVector v)
         , testProperty "viewr (init)" $ \v -> v `deepseq` testNF (initVector v)
+        , testProperty "map'" $ \v -> v `deepseq` testNF (V.map' (+ 1) v)
         , testProperty "reverse" $ \v -> v `deepseq` testNF (V.reverse v)
         , testProperty "zip" $ \v1 v2 -> v1 `deepseq` v2 `deepseq` testNF (V.zip v1 v2)
         , testProperty "unzip" $ \v -> v `deepseq` testNF (V.unzip v)

@@ -40,9 +40,9 @@ module Data.RRBVector
     , module Data.Functor.WithIndex
     , module Data.Traversable.WithIndex
     -- * Transformations
-    , map, reverse
+    , map, map', reverse
     -- * Zipping and unzipping
-    , zip, zipWith, unzip
+    , zip, zipWith, unzip, unzipWith
     ) where
 
 import Prelude hiding (replicate, lookup, take, drop, splitAt, map, reverse, zip, zipWith, unzip)

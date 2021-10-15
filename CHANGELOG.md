@@ -1,5 +1,7 @@
 # latest
 
+* Add `map'` & `unzipWith`
+* Make `zip` & `unzip` more strict
 * Make various functions strict in the index
 * Make the `FoldableWithIndex`, `FunctorWithIndex`, `TraversableWithIndex` instances more efficient
 

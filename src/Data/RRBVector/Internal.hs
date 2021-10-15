@@ -23,9 +23,9 @@ module Data.RRBVector.Internal
     , take, drop, splitAt
     , insertAt, deleteAt
     -- * Transformations
-    , map, reverse
+    , map, map', reverse
     -- * Zipping and unzipping
-    , zip, zipWith, unzip
+    , zip, zipWith, unzip, unzipWith
     ) where
 
 import Control.Applicative (Alternative, liftA2)
@@ -260,8 +260,6 @@ instance Foldable Vector where
     length (Root s _ _) = s
 
 instance FoldableWithIndex Int Vector where
-    -- TODO: ifoldMap?
-
     ifoldr f acc = go
       where
         go Empty = acc
@@ -523,6 +521,15 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Unbalanced arr sizes) = Unbalanced (A.map' mapTree arr) sizes
     mapTree (Leaf arr) = Leaf (A.map f arr)
 
+-- | \(O(n)\). Like 'map', but the results of the function are forced.
+map' :: (a -> b) -> Vector a -> Vector b
+map' _ Empty = Empty
+map' f (Root size sh tree) = Root size sh (mapTree tree)
+  where
+    mapTree (Balanced arr) = Balanced (A.map' mapTree arr)
+    mapTree (Unbalanced arr sizes) = Unbalanced (A.map' mapTree arr) sizes
+    mapTree (Leaf arr) = Leaf (A.map' f arr)
+
 -- | \(O(n)\). Reverse the vector.
 --
 -- >>> reverse (fromList [1, 2, 3])
@@ -541,6 +548,7 @@ zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 
+-- TODO: keep this so strict?
 -- | \(O(n)\). Unzip a vector of pairs.
 --
 -- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
@@ -555,6 +563,22 @@ unzip (Root size sh tree) = case unzipTree tree of
     unzipTree (Unbalanced arr sizes) = case A.unzipWith unzipTree arr of
         (!left, !right) -> (Unbalanced left sizes, Unbalanced right sizes)
     unzipTree (Leaf arr) = case A.unzipWith id arr of
+        (!left, !right) -> (Leaf left, Leaf right)
+
+-- TODO: keep this so strict?
+-- | \(O(n)\). Unzip a vector with a function.
+--
+-- > unzipWith f = unzip . map f
+unzipWith :: (a -> (b, c)) -> Vector a -> (Vector b, Vector c)
+unzipWith _ Empty = (Empty, Empty)
+unzipWith f (Root size sh tree) = case unzipTree tree of
+    (!left, !right) -> (Root size sh left, Root size sh right)
+  where
+    unzipTree (Balanced arr) = case A.unzipWith unzipTree arr of
+        (!left, !right) -> (Balanced left, Balanced right)
+    unzipTree (Unbalanced arr sizes) = case A.unzipWith unzipTree arr of
+        (!left, !right) -> (Unbalanced left sizes, Unbalanced right sizes)
+    unzipTree (Leaf arr) = case A.unzipWith f arr of
         (!left, !right) -> (Leaf left, Leaf right)
 
 -- | \(O(\log n)\). The first element and the vector without the first element, or 'Nothing' if the vector is empty.
