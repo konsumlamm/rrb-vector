@@ -33,9 +33,7 @@ import qualified Control.Applicative
 import Control.DeepSeq
 import Control.Monad (when, MonadPlus)
 import Control.Monad.ST (runST)
-#if !(MIN_VERSION_base(4,13,0))
-import Control.Monad.Fail (MonadFail(..))
-#endif
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.Fix (MonadFix(..))
 import Control.Monad.Zip (MonadZip(..))
 
@@ -340,6 +338,9 @@ instance Applicative Vector where
 instance Monad Vector where
     xs >>= f = foldl' (\acc x -> acc >< f x) empty xs
     (>>) = (*>)
+#if !(MIN_VERSION_base(4,13,0))
+    fail = Fail.fail
+#endif
 
 instance Alternative Vector where
     empty = empty
@@ -347,7 +348,7 @@ instance Alternative Vector where
 
 instance MonadPlus Vector
 
-instance MonadFail Vector where
+instance Fail.MonadFail Vector where
     fail _ = empty
 
 instance MonadFix Vector where
