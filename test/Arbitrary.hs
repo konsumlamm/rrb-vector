@@ -3,15 +3,22 @@
 module Arbitrary where
 
 import Control.Applicative (liftA2)
+import Data.Foldable (toList)
 
 import Test.Tasty.QuickCheck
 
 import qualified Data.RRBVector as V
 import Data.RRBVector.Internal.Debug
 
+generators :: [[a] -> V.Vector a]
+generators = [V.fromList, fromListUnbalanced]
+
 -- TODO: improve instance
 instance (Arbitrary a) => Arbitrary (V.Vector a) where
-    arbitrary = elements [V.fromList, fromListUnbalanced, foldr (V.<|) V.empty] >>= (<$> arbitrary)
+    shrink = concatMap (sequence generators) . shrink . toList
+    arbitrary = do
+        gen <- elements generators
+        fmap gen arbitrary
 
 -- A custom 'Testable' instance to use 'showTree'.
 instance {-# OVERLAPPING #-} (Arbitrary a, Show a, Testable prop) => Testable (V.Vector a -> prop) where

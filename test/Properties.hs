@@ -2,15 +2,17 @@ module Properties
     ( properties
     ) where
 
-import Data.Foldable
-import Data.Functor.Identity
+import Control.Applicative (liftA2)
+import Data.Foldable (Foldable(..))
 import Data.List (uncons)
+import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
 import Data.Foldable.WithIndex
 import Data.Functor.WithIndex
 import Data.Traversable.WithIndex
 import qualified Data.RRBVector as V
+import Test.QuickCheck.Classes.Base
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -49,44 +51,15 @@ unsnoc :: [a] -> Maybe ([a], a)
 unsnoc [] = Nothing
 unsnoc ls = Just (init ls, last ls)
 
-instances :: TestTree
-instances = testGroup "instances"
-    [ testGroup "Foldable"
-        [ testProperty "foldr" $ \(v :: V Int) -> foldr (:) [] v === foldr (:) [] (toList v)
-        , testProperty "foldl" $ \(v :: V Int) -> foldl (flip (:)) [] v === foldl (flip (:)) [] (toList v)
-        , testProperty "foldr'" $ \(v :: V Int) -> foldr' (:) [] v === foldr' (:) [] (toList v)
-        , testProperty "foldl'" $ \(v :: V Int) -> foldl' (flip (:)) [] v === foldl' (flip (:)) [] (toList v)
-        ]
-    , testGroup "FoldableWithIndex"
-        [ testProperty "ifoldr" $ \(v :: V Int) -> ifoldr (\i x acc -> (i, x) : acc) [] v === ifoldr (\i x acc -> (i, x) : acc) [] (toList v)
-        , testProperty "ifoldl" $ \(v :: V Int) -> ifoldl (\i acc x -> (i, x) : acc) [] v === ifoldl (\i acc x -> (i, x) : acc)  [] (toList v)
-        , testProperty "ifoldr'" $ \(v :: V Int) -> ifoldr' (\i x acc -> (i, x) : acc) [] v === ifoldr' (\i x acc -> (i, x) : acc) [] (toList v)
-        , testProperty "ifoldl'" $ \(v :: V Int) -> ifoldl' (\i acc x -> (i, x) : acc) [] v === ifoldl' (\i acc x -> (i, x) : acc)  [] (toList v)
-        , testProperty "satisfies `ifoldr (const f) x v = foldr f x v`" $
-            \(v :: V Int) -> ifoldr (const (:)) [] v === foldr (:) [] v
-        , testProperty "satisfies `ifoldl (const f) x v = foldl f x v`" $
-            \(v :: V Int) -> ifoldl (const (flip (:))) [] v === foldl (flip (:)) [] v
-        ]
-    , testGroup "Functor"
-        [ testProperty "fmap" $ \v -> toList (V.map (+ 1) v) === map (+ 1) (toList v)
-        ]
-    , testGroup "FunctorWithIndex"
-        [ testProperty "imap" $ \(v :: V Int) -> toList (imap (,) v) === imap (,) (toList v)
-        , testProperty "satisfies `imap (const f) v = map f v`" $ \v -> imap (const (+ 1)) v === V.map (+ 1) v
-        ]
-    , testGroup "Traversable"
-        [ testProperty "traverse" $
-            \(v :: V Int) -> fmap toList (traverse (Just . (+ 1)) v) === traverse (Just . (+ 1)) (toList v)
-        ]
-    , testGroup "TraversableWithIndex"
-        [ testProperty "itraverse" $
-            \(v :: V Int) -> fmap toList (itraverse (\i x -> Just (i + x)) v) === itraverse (\i x -> Just (i + x)) (toList v)
-        , testProperty "satisfies `itraverse (const f) v = traverse f v`" $
-            \(v :: V Int) -> itraverse (const (Just . (+ 1))) v === traverse (Just . (+ 1)) v
-        , testProperty "satisfies `runIdentity (itraverse (\\i x -> Identity (f i x)) v) = imap f v`" $
-            \(v :: V Int) -> runIdentity (itraverse (\i x -> Identity (i, x)) v) === imap (,) v
-        ]
-    ]
+
+testLaws :: Laws -> TestTree
+testLaws (Laws name pairs) = testGroup name (map (uncurry testProperty) pairs)
+
+proxyVInt :: Proxy (V Int)
+proxyVInt = Proxy
+
+proxyV :: Proxy V
+proxyV = Proxy
 
 properties :: TestTree
 properties = testGroup "properties"
@@ -172,4 +145,74 @@ properties = testGroup "properties"
         [ testProperty "unzips the vector" $ \v -> (\(xs, ys) -> (toList xs, toList ys)) (V.unzip v) === unzip (toList v)
         ]
     , instances
+    , laws
+    ]
+
+instances :: TestTree
+instances = testGroup "instances"
+    [ testGroup "Foldable"
+        [ testProperty "foldr" $ \(v :: V Int) -> foldr (:) [] v === foldr (:) [] (toList v)
+        , testProperty "foldl" $ \(v :: V Int) -> foldl (flip (:)) [] v === foldl (flip (:)) [] (toList v)
+        , testProperty "foldr'" $ \(v :: V Int) -> foldr' (:) [] v === foldr' (:) [] (toList v)
+        , testProperty "foldl'" $ \(v :: V Int) -> foldl' (flip (:)) [] v === foldl' (flip (:)) [] (toList v)
+        ]
+    , testGroup "FoldableWithIndex"
+        [ testProperty "ifoldr" $ \(v :: V Int) -> ifoldr (\i x acc -> (i, x) : acc) [] v === ifoldr (\i x acc -> (i, x) : acc) [] (toList v)
+        , testProperty "ifoldl" $ \(v :: V Int) -> ifoldl (\i acc x -> (i, x) : acc) [] v === ifoldl (\i acc x -> (i, x) : acc)  [] (toList v)
+        , testProperty "ifoldr'" $ \(v :: V Int) -> ifoldr' (\i x acc -> (i, x) : acc) [] v === ifoldr' (\i x acc -> (i, x) : acc) [] (toList v)
+        , testProperty "ifoldl'" $ \(v :: V Int) -> ifoldl' (\i acc x -> (i, x) : acc) [] v === ifoldl' (\i acc x -> (i, x) : acc)  [] (toList v)
+        , testProperty "satisfies `ifoldr (const f) x v = foldr f x v`" $
+            \(v :: V Int) -> ifoldr (const (:)) [] v === foldr (:) [] v
+        , testProperty "satisfies `ifoldl (const f) x v = foldl f x v`" $
+            \(v :: V Int) -> ifoldl (const (flip (:))) [] v === foldl (flip (:)) [] v
+        ]
+    , testGroup "Functor"
+        [ testProperty "fmap" $ \v -> toList (V.map (+ 1) v) === map (+ 1) (toList v)
+        ]
+    , testGroup "FunctorWithIndex"
+        [ testProperty "imap" $ \(v :: V Int) -> toList (imap (,) v) === imap (,) (toList v)
+        , testProperty "satisfies `imap (const f) v = map f v`" $ \v -> imap (const (+ 1)) v === V.map (+ 1) v
+        ]
+    , testGroup "Traversable"
+        [ testProperty "traverse" $
+            \(v :: V Int) -> fmap toList (traverse (Just . (+ 1)) v) === traverse (Just . (+ 1)) (toList v)
+        ]
+    , testGroup "TraversableWithIndex"
+        [ testProperty "itraverse" $
+            \(v :: V Int) -> fmap toList (itraverse (\i x -> Just (i + x)) v) === itraverse (\i x -> Just (i + x)) (toList v)
+        , testProperty "satisfies `itraverse (const f) v = traverse f v`" $
+            \(v :: V Int) -> itraverse (const (Just . (+ 1))) v === traverse (Just . (+ 1)) v
+        , testProperty "satisfies `imapDefault f v = imap f v`" $
+            \(v :: V Int) -> imapDefault (,) v === imap (,) v
+        ]
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) $ testGroup "Applicative"
+        [ testProperty "liftA2" $
+            \(v1 :: V Int) (v2 :: V Int) -> toList (liftA2 (,) v1 v2) === liftA2 (,) (toList v1) (toList v2)
+        , testProperty "<*>" $
+            \(v1 :: V Int) (v2 :: V Int) -> toList ((,) <$> v1 <*> v2) === ((,) <$> toList v1 <*> toList v2)
+        , testProperty "*>" $
+            \(v1 :: V Int) (v2 :: V Int) -> toList (v1 *> v2) === (toList v1 *> toList v2)
+        , testProperty "<*" $
+            \(v1 :: V Int) (v2 :: V Int) -> toList (v1 <* v2) === (toList v1 <* toList v2)
+        ]
+    ]
+
+laws :: TestTree
+laws = testGroup "typeclass laws"
+    [ testLaws $ eqLaws proxyVInt
+    , testLaws $ isListLaws proxyVInt
+    , testLaws $ monoidLaws proxyVInt
+    , testLaws $ semigroupMonoidLaws proxyVInt
+    , testLaws $ ordLaws proxyVInt
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ semigroupLaws proxyVInt
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ showLaws proxyVInt
+    , localOption (QuickCheckTests 500) . testLaws $ showReadLaws proxyVInt
+    , testLaws $ alternativeLaws proxyV
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 100) . testLaws $ applicativeLaws proxyV
+    , testLaws $ foldableLaws proxyV
+    , testLaws $ functorLaws proxyV
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 100) . testLaws $ monadLaws proxyV
+    , testLaws $ monadPlusLaws proxyV
+    , localOption (QuickCheckTests 500) . testLaws $ monadZipLaws proxyV
+    , localOption (QuickCheckMaxSize 100) . testLaws $ traversableLaws proxyV
     ]

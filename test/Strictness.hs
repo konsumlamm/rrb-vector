@@ -7,6 +7,8 @@ module Strictness
     ( strictness
     ) where
 
+import Data.Foldable (foldr', foldl')
+import Data.Foldable.WithIndex
 #if GHC_HEAP_VIEW
 import Control.DeepSeq (deepseq)
 import GHC.AssertNF (isNF)
@@ -58,6 +60,10 @@ strictness = testGroup "strictness"
         , testProperty "reverse" $ \v -> v `deepseq` testNF (V.reverse v)
         , testProperty "zip" $ \v1 v2 -> v1 `deepseq` v2 `deepseq` testNF (V.zip v1 v2)
         , testProperty "unzip" $ \v -> v `deepseq` testNF (V.unzip v)
+        , testProperty "foldr'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (foldr' (:) [] v)
+        , testProperty "foldl'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (foldl' (flip (:)) [] v)
+        , testProperty "ifoldr'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (ifoldr' (const (:)) [] v)
+        , testProperty "ifoldl'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (ifoldl' (const (flip (:))) [] v)
         ]
     , testGroup "bottom"
 #else
