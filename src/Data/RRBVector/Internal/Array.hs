@@ -87,7 +87,7 @@ ifoldlStep i0 step f z (Array start len arr) =
     let go !i !j -- i is the index in arr, j is the index for f
             | i < start = z
             | (# x #) <- indexSmallArray## arr i = f j (go (i - 1) (j - step x)) x
-    in go (start + len - 1) i0 -- TODO
+    in go (start + len - 1) i0
 
 ifoldrStep' :: Int -> (a -> Int) -> (Int -> a -> b -> b) -> b -> Array a -> b
 ifoldrStep' i0 step f z (Array start len arr) =
@@ -102,7 +102,7 @@ ifoldlStep' i0 step f z (Array start len arr) =
         go !i !j !acc -- i is the index in arr, j is the index for f
             | i == end = acc
             | (# x #) <- indexSmallArray## arr i = go (i + 1) (j + step x) (f j acc x)
-    in go start i0 z -- TODO
+    in go start i0 z
 
 uninitialized :: a
 uninitialized = errorWithoutStackTrace "uninitialized"
@@ -221,7 +221,7 @@ imapStep :: Int -> (a -> Int) -> (Int -> a -> b) -> Array a -> Array b
 imapStep i0 step f (Array start len arr) = Array 0 len $ runSmallArray $ do
     sma <- newSmallArray len uninitialized
     -- i is the index in arr, j is the index in sma, k is the index for f
-    let loop !i !j !k = when (j < len) $ do -- TODO: strict enough?
+    let loop !i !j !k = when (j < len) $ do
             x <- indexSmallArrayM arr i
             writeSmallArray sma j (f k x)
             loop (i + 1) (j + 1) (k + step x)

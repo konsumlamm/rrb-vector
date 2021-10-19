@@ -258,6 +258,9 @@ instance Foldable Vector where
     length (Root s _ _) = s
 
 instance FoldableWithIndex Int Vector where
+    ifoldMap f = ifoldr (\i x acc -> f i x <> acc) mempty
+    {-# INLINE ifoldMap #-}
+
     ifoldr f acc = go
       where
         go Empty = acc
@@ -549,7 +552,7 @@ zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 
--- TODO: keep this so strict?
+-- TODO: unzip = unzipWith id
 -- | \(O(n)\). Unzip a vector of pairs.
 --
 -- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
@@ -566,7 +569,6 @@ unzip (Root size sh tree) = case unzipTree tree of
     unzipTree (Leaf arr) = case A.unzipWith id arr of
         (!left, !right) -> (Leaf left, Leaf right)
 
--- TODO: keep this so strict?
 -- | \(O(n)\). Unzip a vector with a function.
 --
 -- > unzipWith f = unzip . map f
