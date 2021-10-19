@@ -10,15 +10,20 @@ import Test.Tasty.QuickCheck
 import qualified Data.RRBVector as V
 import Data.RRBVector.Internal.Debug
 
-generators :: [[a] -> V.Vector a]
-generators = [V.fromList, fromListUnbalanced]
+builders :: [[a] -> V.Vector a]
+builders = [V.fromList, fromListUnbalanced]
+
+instance (Arbitrary a) => Arbitrary (V.Vector a) where
+    arbitrary = arbitrary1
+    shrink = shrink1
 
 -- TODO: improve instance
-instance (Arbitrary a) => Arbitrary (V.Vector a) where
-    shrink = concatMap (sequence generators) . shrink . toList
-    arbitrary = do
-        gen <- elements generators
-        fmap gen arbitrary
+instance Arbitrary1 V.Vector where
+    liftArbitrary gen = do
+        build <- elements builders
+        fmap build (liftArbitrary gen)
+
+    liftShrink shr = concatMap (sequence builders) . liftShrink shr . toList
 
 -- A custom 'Testable' instance to use 'showTree'.
 instance {-# OVERLAPPING #-} (Arbitrary a, Show a, Testable prop) => Testable (V.Vector a -> prop) where
