@@ -27,7 +27,8 @@ instance Arbitrary1 V.Vector where
 
 -- A custom 'Testable' instance to use 'showTree'.
 instance {-# OVERLAPPING #-} (Arbitrary a, Show a, Testable prop) => Testable (V.Vector a -> prop) where
-    property f = propertyForAllShrinkShow arbitrary shrink (pure . showTree) f
+    property = propertyForAllShrinkShow arbitrary shrink (pure . showTree)
+
     propertyForAllShrinkShow gen shr shw f =
         propertyForAllShrinkShow
             (liftA2 (,) gen arbitrary)

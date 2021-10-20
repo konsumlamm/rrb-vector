@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 
-#define GHC_HEAP_VIEW defined(VERSION_ghc_heap_view)
+#define NOTHUNKS defined(VERSION_nothunks)
 
 module Strictness
     ( strictness
@@ -9,11 +9,13 @@ module Strictness
 
 import Data.Foldable (foldr', foldl')
 import Data.Foldable.WithIndex
-#if GHC_HEAP_VIEW
-import Control.DeepSeq (deepseq)
-import GHC.AssertNF (isNF)
-#endif
 import qualified Data.RRBVector as V
+#if NOTHUNKS
+import Data.Maybe (isNothing)
+import Data.Typeable
+import Control.DeepSeq (deepseq)
+import NoThunks.Class
+#endif
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -21,9 +23,9 @@ import Arbitrary ()
 
 default (Int)
 
-#if GHC_HEAP_VIEW
-testNF :: a -> Property
-testNF !x = ioProperty (isNF x)
+#if NOTHUNKS
+testNF :: (Typeable a) => a -> Property
+testNF !x = ioProperty (isNothing <$> wNoThunks [] (InspectHeap x))
 
 tailVector :: V.Vector a -> Maybe (V.Vector a)
 tailVector v = case V.viewl v of
@@ -38,9 +40,9 @@ initVector v = case V.viewr v of
 
 strictness :: TestTree
 strictness = testGroup "strictness"
-#if GHC_HEAP_VIEW
+#if NOTHUNKS
     [ testGroup "nf"
-        [ testProperty "empty" $ testNF V.empty
+        [ testProperty "empty" $ testNF (V.empty :: V.Vector Int)
         , testProperty "singleton" $ testNF (V.singleton 42)
         , testProperty "fromList" $ \ls -> ls `deepseq` testNF (V.fromList ls)
         , testProperty "replicate" $ \n -> testNF (V.replicate n 42)
