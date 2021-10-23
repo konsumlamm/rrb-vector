@@ -1,21 +1,13 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
-
-#define NOTHUNKS defined(VERSION_nothunks)
-
 module Strictness
     ( strictness
     ) where
 
-import Data.Foldable (foldr', foldl')
-import Data.Foldable.WithIndex
-import qualified Data.RRBVector as V
-#if NOTHUNKS
-import Data.Maybe (isNothing)
-import Data.Typeable
 import Control.DeepSeq (deepseq)
+import Data.Foldable (foldr', foldl', toList)
+import Data.Maybe (isNothing)
+import qualified Data.RRBVector as V
+import Data.RRBVector.Internal.Debug
 import NoThunks.Class
-#endif
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -23,9 +15,21 @@ import Arbitrary ()
 
 default (Int)
 
-#if NOTHUNKS
-testNF :: (Typeable a) => a -> Property
-testNF !x = ioProperty (isNothing <$> wNoThunks [] (InspectHeap x))
+instance (NoThunks a) => NoThunks (V.Vector a) where
+    showTypeOf _ = "Vector"
+
+    wNoThunks _ Empty = pure Nothing
+    wNoThunks ctx (Root _ _ tree) = wNoThunks ctx tree
+
+instance (NoThunks a) => NoThunks (Tree a) where
+    showTypeOf _ = "Tree"
+
+    wNoThunks ctx (Balanced arr) = noThunksInValues ctx (toList arr)
+    wNoThunks ctx (Unbalanced arr _) = noThunksInValues ctx (toList arr)
+    wNoThunks ctx (Leaf arr) = noThunksInValues ctx (toList arr)
+
+testNF :: (NoThunks a) => a -> Property
+testNF x = x `seq` ioProperty (isNothing <$> wNoThunks [] x)
 
 tailVector :: V.Vector a -> Maybe (V.Vector a)
 tailVector v = case V.viewl v of
@@ -36,11 +40,9 @@ initVector :: V.Vector a -> Maybe (V.Vector a)
 initVector v = case V.viewr v of
     Nothing -> Nothing
     Just (xs, _) -> Just xs
-#endif
 
 strictness :: TestTree
 strictness = testGroup "strictness"
-#if NOTHUNKS
     [ testGroup "nf"
         [ testProperty "empty" $ testNF (V.empty :: V.Vector Int)
         , testProperty "singleton" $ testNF (V.singleton 42)
@@ -64,13 +66,10 @@ strictness = testGroup "strictness"
         , testProperty "unzip" $ \v -> v `deepseq` testNF (V.unzip v)
         , testProperty "foldr'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (foldr' (:) [] v)
         , testProperty "foldl'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (foldl' (flip (:)) [] v)
-        , testProperty "ifoldr'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (ifoldr' (const (:)) [] v)
-        , testProperty "ifoldl'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (ifoldl' (const (flip (:))) [] v)
+        , testProperty "ifoldr'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (V.ifoldr' (const (:)) [] v)
+        , testProperty "ifoldl'" $ \v -> (v :: V.Vector Int) `deepseq` testNF (V.ifoldl' (const (flip (:))) [] v)
         ]
     , testGroup "bottom"
-#else
-    [ testGroup "bottom"
-#endif
         [ testProperty "singleton" $ V.singleton undefined `seq` ()
         , testProperty "fromList" $ \n -> V.fromList (replicate n undefined) `seq` ()
         , testProperty "replicate" $ \n -> V.replicate n undefined `seq` ()

@@ -8,9 +8,6 @@ import Data.List (uncons)
 import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
-import Data.Foldable.WithIndex
-import Data.Functor.WithIndex
-import Data.Traversable.WithIndex
 import qualified Data.RRBVector as V
 import Test.QuickCheck.Classes.Base
 import Test.Tasty
@@ -157,21 +154,21 @@ instances = testGroup "instances"
         , testProperty "foldl'" $ \(v :: V Int) -> foldl' (flip (:)) [] v === foldl' (flip (:)) [] (toList v)
         ]
     , testGroup "FoldableWithIndex"
-        [ testProperty "ifoldr" $ \(v :: V Int) -> ifoldr (\i x acc -> (i, x) : acc) [] v === ifoldr (\i x acc -> (i, x) : acc) [] (toList v)
-        , testProperty "ifoldl" $ \(v :: V Int) -> ifoldl (\i acc x -> (i, x) : acc) [] v === ifoldl (\i acc x -> (i, x) : acc)  [] (toList v)
-        , testProperty "ifoldr'" $ \(v :: V Int) -> ifoldr' (\i x acc -> (i, x) : acc) [] v === ifoldr' (\i x acc -> (i, x) : acc) [] (toList v)
-        , testProperty "ifoldl'" $ \(v :: V Int) -> ifoldl' (\i acc x -> (i, x) : acc) [] v === ifoldl' (\i acc x -> (i, x) : acc)  [] (toList v)
+        [ testProperty "ifoldr" $ \(v :: V Int) -> V.ifoldr (\i x acc -> (i, x) : acc) [] v === V.ifoldr (\i x acc -> (i, x) : acc) [] (toList v)
+        , testProperty "ifoldl" $ \(v :: V Int) -> V.ifoldl (\i acc x -> (i, x) : acc) [] v === V.ifoldl (\i acc x -> (i, x) : acc)  [] (toList v)
+        , testProperty "ifoldr'" $ \(v :: V Int) -> V.ifoldr' (\i x acc -> (i, x) : acc) [] v === V.ifoldr' (\i x acc -> (i, x) : acc) [] (toList v)
+        , testProperty "ifoldl'" $ \(v :: V Int) -> V.ifoldl' (\i acc x -> (i, x) : acc) [] v === V.ifoldl' (\i acc x -> (i, x) : acc)  [] (toList v)
         , testProperty "satisfies `ifoldr (const f) x v = foldr f x v`" $
-            \(v :: V Int) -> ifoldr (const (:)) [] v === foldr (:) [] v
+            \(v :: V Int) -> V.ifoldr (const (:)) [] v === foldr (:) [] v
         , testProperty "satisfies `ifoldl (const f) x v = foldl f x v`" $
-            \(v :: V Int) -> ifoldl (const (flip (:))) [] v === foldl (flip (:)) [] v
+            \(v :: V Int) -> V.ifoldl (const (flip (:))) [] v === foldl (flip (:)) [] v
         ]
     , testGroup "Functor"
         [ testProperty "fmap" $ \v -> toList (V.map (+ 1) v) === map (+ 1) (toList v)
         ]
     , testGroup "FunctorWithIndex"
-        [ testProperty "imap" $ \(v :: V Int) -> toList (imap (,) v) === imap (,) (toList v)
-        , testProperty "satisfies `imap (const f) v = map f v`" $ \v -> imap (const (+ 1)) v === V.map (+ 1) v
+        [ testProperty "imap" $ \(v :: V Int) -> toList (V.imap (,) v) === V.imap (,) (toList v)
+        , testProperty "satisfies `imap (const f) v = map f v`" $ \v -> V.imap (const (+ 1)) v === V.map (+ 1) v
         ]
     , testGroup "Traversable"
         [ testProperty "traverse" $
@@ -179,11 +176,11 @@ instances = testGroup "instances"
         ]
     , testGroup "TraversableWithIndex"
         [ testProperty "itraverse" $
-            \(v :: V Int) -> fmap toList (itraverse (\i x -> Just (i + x)) v) === itraverse (\i x -> Just (i + x)) (toList v)
+            \(v :: V Int) -> fmap toList (V.itraverse (\i x -> Just (i + x)) v) === V.itraverse (\i x -> Just (i + x)) (toList v)
         , testProperty "satisfies `itraverse (const f) v = traverse f v`" $
-            \(v :: V Int) -> itraverse (const (Just . (+ 1))) v === traverse (Just . (+ 1)) v
+            \(v :: V Int) -> V.itraverse (const (Just . (+ 1))) v === traverse (Just . (+ 1)) v
         , testProperty "satisfies `imapDefault f v = imap f v`" $
-            \(v :: V Int) -> imapDefault (,) v === imap (,) v
+            \(v :: V Int) -> V.imapDefault (,) v === V.imap (,) v
         ]
     , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) $ testGroup "Applicative"
         [ testProperty "liftA2" $

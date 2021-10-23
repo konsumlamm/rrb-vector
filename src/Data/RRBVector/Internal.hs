@@ -7,6 +7,7 @@
 module Data.RRBVector.Internal
     ( Vector(..)
     , Tree(..)
+    , Shift
     -- * Internal
     , blockShift, blockSize, treeSize, computeSizes, up, down
     -- * Construction
