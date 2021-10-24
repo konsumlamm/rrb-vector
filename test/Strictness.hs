@@ -6,12 +6,12 @@ module Strictness
 
 #ifdef VERSION_nothunks
 import Control.DeepSeq (deepseq)
+import Data.Foldable (foldr', foldl', toList)
+import Data.Maybe (isNothing)
 import Data.RRBVector.Internal.Debug
 import NoThunks.Class
 #endif
 
-import Data.Foldable (foldr', foldl', toList)
-import Data.Maybe (isNothing)
 import qualified Data.RRBVector as V
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -36,7 +36,6 @@ instance (NoThunks a) => NoThunks (Tree a) where
 
 testNF :: (NoThunks a) => a -> Property
 testNF x = x `seq` ioProperty (isNothing <$> wNoThunks [] x)
-#endif
 
 tailVector :: V.Vector a -> Maybe (V.Vector a)
 tailVector v = case V.viewl v of
@@ -47,11 +46,12 @@ initVector :: V.Vector a -> Maybe (V.Vector a)
 initVector v = case V.viewr v of
     Nothing -> Nothing
     Just (xs, _) -> Just xs
+#endif
 
 strictness :: TestTree
 strictness = testGroup "strictness"
 #ifdef VERSION_nothunks
-    [ testGroup "nf"
+    [ localOption (QuickCheckTests 500) $ testGroup "nf"
         [ testProperty "empty" $ testNF (V.empty :: V.Vector Int)
         , testProperty "singleton" $ testNF (V.singleton 42)
         , testProperty "fromList" $ \ls -> ls `deepseq` testNF (V.fromList ls)

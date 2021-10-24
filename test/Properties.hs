@@ -182,7 +182,7 @@ instances = testGroup "instances"
         , testProperty "satisfies `imapDefault f v = imap f v`" $
             \(v :: V Int) -> V.imapDefault (,) v === V.imap (,) v
         ]
-    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) $ testGroup "Applicative"
+    , localOption (QuickCheckMaxSize 100) $ testGroup "Applicative"
         [ testProperty "liftA2" $
             \(v1 :: V Int) (v2 :: V Int) -> toList (liftA2 (,) v1 v2) === liftA2 (,) (toList v1) (toList v2)
         , testProperty "<*>" $
@@ -202,14 +202,14 @@ laws = testGroup "typeclass laws"
     , testLaws $ semigroupMonoidLaws proxyVInt
     , testLaws $ ordLaws proxyVInt
     , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ semigroupLaws proxyVInt
-    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ showLaws proxyVInt
-    , localOption (QuickCheckTests 500) . testLaws $ showReadLaws proxyVInt
+    , localOption (QuickCheckMaxSize 500) . testLaws $ showLaws proxyVInt
+    , localOption (QuickCheckMaxSize 1000) . testLaws $ showReadLaws proxyVInt
     , testLaws $ alternativeLaws proxyV
-    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 100) . testLaws $ applicativeLaws proxyV
-    , testLaws $ foldableLaws proxyV
+    , localOption (QuickCheckTests 100) . localOption (QuickCheckMaxSize 100) . testLaws $ applicativeLaws proxyV
+    , localOption (QuickCheckTests 100) . testLaws $ foldableLaws proxyV
     , testLaws $ functorLaws proxyV
-    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 100) . testLaws $ monadLaws proxyV
+    , localOption (QuickCheckTests 100) . localOption (QuickCheckMaxSize 100) . testLaws $ monadLaws proxyV
     , testLaws $ monadPlusLaws proxyV
-    , localOption (QuickCheckTests 500) . testLaws $ monadZipLaws proxyV
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 5000) . testLaws $ monadZipLaws proxyV
     , localOption (QuickCheckMaxSize 100) . testLaws $ traversableLaws proxyV
     ]
