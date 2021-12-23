@@ -197,10 +197,9 @@ instances = testGroup "instances"
 laws :: TestTree
 laws = testGroup "typeclass laws"
     [ testLaws $ eqLaws proxyVInt
+    , testLaws $ ordLaws proxyVInt
     , testLaws $ isListLaws proxyVInt
     , testLaws $ monoidLaws proxyVInt
-    , testLaws $ semigroupMonoidLaws proxyVInt
-    , testLaws $ ordLaws proxyVInt
     , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ semigroupLaws proxyVInt
     , localOption (QuickCheckMaxSize 500) . testLaws $ showLaws proxyVInt
     , localOption (QuickCheckMaxSize 1000) . testLaws $ showReadLaws proxyVInt
