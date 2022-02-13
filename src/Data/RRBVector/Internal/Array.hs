@@ -5,10 +5,10 @@
 
 -- | This is an internal module.
 --
--- This module provides a thin wrapper over 'Data.Primitive.SmallArray'
+-- It provides a thin wrapper over "Data.Primitive.SmallArray"
 -- with \(O(1)\) slicing.
 --
--- Warning: No bound checks are performed!
+-- __Warning:__ No bound checks are performed!
 
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
