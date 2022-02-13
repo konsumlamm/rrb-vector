@@ -527,6 +527,8 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
     mapTree (Leaf arr) = Leaf (A.map f arr)
 
 -- | \(O(n)\). Like 'map', but the results of the function are forced.
+--
+-- @since 0.1.2.0
 map' :: (a -> b) -> Vector a -> Vector b
 map' _ Empty = Empty
 map' f (Root size sh tree) = Root size sh (mapTree tree)
@@ -573,6 +575,8 @@ unzip (Root size sh tree) = case unzipTree tree of
 -- | \(O(n)\). Unzip a vector with a function.
 --
 -- > unzipWith f = unzip . map f
+--
+-- @since 0.1.2.0
 unzipWith :: (a -> (b, c)) -> Vector a -> (Vector b, Vector c)
 unzipWith _ Empty = (Empty, Empty)
 unzipWith f (Root size sh tree) = case unzipTree tree of
