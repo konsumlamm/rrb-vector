@@ -1,5 +1,5 @@
 name:               rrb-vector
-version:            0.1.1.0
+version:            0.2.0.0
 synopsis:           Efficient RRB-Vectors
 description:
   An RRB-Vector is an efficient sequence data structure.
@@ -22,7 +22,7 @@ extra-source-files:
   CHANGELOG.md
   README.md
 cabal-version:      2.0
-tested-with:        GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.7, GHC == 9.0.2, GHC == 9.2.2
+tested-with:        GHC == 8.4.4, GHC == 8.6.5, GHC == 8.8.4, GHC == 8.10.7, GHC == 9.0.2, GHC == 9.2.5, GHC == 9.4.4
 
 source-repository head
   type:     git
@@ -38,7 +38,7 @@ library
     Data.RRBVector.Internal.Array
     Data.RRBVector.Internal.Buffer
     Data.RRBVector.Internal.IntRef
-  build-depends:        base >= 4.11 && < 5, deepseq ^>= 1.4.3, indexed-traversable ^>= 0.1, primitive ^>= 0.7
+  build-depends:        base >= 4.11 && < 5, deepseq ^>= 1.4.3, indexed-traversable ^>= 0.1, primitive >= 0.7 && < 0.9
   ghc-options:          -O2 -Wall -Wno-name-shadowing -Werror=missing-methods -Werror=missing-fields
   default-language:     Haskell2010
 
@@ -51,7 +51,7 @@ test-suite test
     Strictness
   type:                 exitcode-stdio-1.0
   ghc-options:          -Wall -Wno-orphans -Wno-type-defaults
-  build-depends:        base >= 4.11 && < 5, deepseq, quickcheck-classes-base, rrb-vector, tasty, tasty-quickcheck
+  build-depends:        base, deepseq, quickcheck-classes-base, rrb-vector, tasty, tasty-quickcheck
   if impl(ghc >= 8.6)
     build-depends:      nothunks
   default-language:     Haskell2010
@@ -63,5 +63,5 @@ benchmark rrb-bench
   type:                 exitcode-stdio-1.0
   default-language:     Haskell2010
   ghc-options:          -O2
-  build-depends:        base >= 4.11 && < 5, rrb-vector, tasty-bench
+  build-depends:        base, rrb-vector, tasty-bench
   default-extensions:   ExtendedDefaultRules

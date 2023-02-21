@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data.RRBVector.Internal
     ( Vector(..)
@@ -528,7 +529,7 @@ map f (Root size sh tree) = Root size sh (mapTree tree)
 
 -- | \(O(n)\). Like 'map', but the results of the function are forced.
 --
--- @since 0.1.2.0
+-- @since 0.2.0.0
 map' :: (a -> b) -> Vector a -> Vector b
 map' _ Empty = Empty
 map' f (Root size sh tree) = Root size sh (mapTree tree)
@@ -576,7 +577,7 @@ unzip (Root size sh tree) = case unzipTree tree of
 --
 -- > unzipWith f = unzip . map f
 --
--- @since 0.1.2.0
+-- @since 0.2.0.0
 unzipWith :: (a -> (b, c)) -> Vector a -> (Vector b, Vector c)
 unzipWith _ Empty = (Empty, Empty)
 unzipWith f (Root size sh tree) = case unzipTree tree of
