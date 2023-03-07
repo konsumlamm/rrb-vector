@@ -46,6 +46,7 @@ import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (fromMaybe)
 import Data.Semigroup
+
 import qualified GHC.Exts as Exts
 import GHC.Stack (HasCallStack)
 import Prelude hiding (replicate, lookup, map, take, drop, splitAt, head, last, reverse, zip, zipWith, unzip)
@@ -556,22 +557,12 @@ zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 
--- TODO: unzip = unzipWith id
 -- | \(O(n)\). Unzip a vector of pairs.
 --
 -- >>> unzip (fromList [(1, "a"), (2, "b"), (3, "c")])
 -- (fromList [1,2,3],fromList ["a","b","c"])
 unzip :: Vector (a, b) -> (Vector a, Vector b)
-unzip Empty = (Empty, Empty)
-unzip (Root size sh tree) = case unzipTree tree of
-    (!left, !right) -> (Root size sh left, Root size sh right)
-  where
-    unzipTree (Balanced arr) = case A.unzipWith unzipTree arr of
-        (!left, !right) -> (Balanced left, Balanced right)
-    unzipTree (Unbalanced arr sizes) = case A.unzipWith unzipTree arr of
-        (!left, !right) -> (Unbalanced left sizes, Unbalanced right sizes)
-    unzipTree (Leaf arr) = case A.unzipWith id arr of
-        (!left, !right) -> (Leaf left, Leaf right)
+unzip = Exts.inline unzipWith id
 
 -- | \(O(n)\). Unzip a vector with a function.
 --
