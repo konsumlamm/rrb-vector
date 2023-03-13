@@ -614,7 +614,7 @@ take n v@(Root size sh tree)
     | n >= size = v
     | otherwise = normalize $ Root n sh (takeTree (n - 1) sh tree)
 
--- | \(O(\log n)\). The vector without the first @i@ elements
+-- | \(O(\log n)\). The vector without the first @i@ elements.
 -- If @i@ is negative, the whole vector is returned. If the vector contains less than @i@ elements, the empty vector is returned.
 drop :: Int -> Vector a -> Vector a
 drop !_ Empty = Empty
@@ -636,11 +636,14 @@ splitAt n v@(Root size sh tree)
             !right = normalize $ Root (size - n) sh (dropTree n sh tree)
         in (left, right)
 
--- | \(O(\log n)\). Insert an element at the given index.
+-- | \(O(\log n)\). Insert an element at the given index, shifting the rest of the vector over.
+-- If the index is negative, add the element to the left end of the vector.
+-- If the index is bigger than or equal to the length of the vector, add the element to the right end of the vector.
 insertAt :: Int -> a -> Vector a -> Vector a
 insertAt i x v = let (left, right) = splitAt i v in (left |> x) >< right
 
 -- | \(O(\log n)\). Delete the element at the given index.
+-- If the index is out of range, return the original vector.
 deleteAt :: Int -> Vector a -> Vector a
 deleteAt i v = let (left, right) = splitAt (i + 1) v in take i left >< right
 

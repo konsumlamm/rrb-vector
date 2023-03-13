@@ -119,12 +119,15 @@ properties = testGroup "properties"
         ]
     , testGroup "insertAt"
         [ testProperty "inserts an element" $ \v i x -> toList (V.insertAt i x v) === insertAtList i x (toList v)
+        , testProperty "prepends for negative indices" $ \v (Negative i) x -> V.insertAt i x v === x V.<| v
+        , testProperty "appends for too large indices" $ \v x -> forAll (arbitrary `suchThat` (> length v)) $ \i -> V.insertAt i x v === v V.|> x
         , testProperty "satisfies `insertAt 0 x v = x <| v`" $ \v x -> V.insertAt 0 x v === x V.<| v
         , testProperty "satisfies `insertAt (length v) x v = v |> x`" $ \v x -> V.insertAt (length v) x v === v V.|> x
         ]
     , testGroup "deleteAt"
         [ testProperty "deletes an element" $ \v (NonNegative i) -> toList (V.deleteAt i v) === deleteAtList i (toList v)
         , testProperty "returns the vector for negative indices" $ \v (Negative i) -> V.deleteAt i v === v
+        , testProperty "returns the vector for too large indices" $ \v -> forAll (arbitrary `suchThat` (>= length v)) $ \i -> V.deleteAt i v === v
         , testProperty "satisfies `deleteAt 0 v = drop 1 v`" $ \v -> V.deleteAt 0 v === V.drop 1 v
         , testProperty "satisfies `deleteAt (length v - 1) v = take (length v - 1) v`" $ \v -> V.deleteAt (length v - 1) v === V.take (length v - 1) v
         ]
