@@ -2,8 +2,9 @@
 --
 -- A 'Buffer' is an array with a fixed capacity, used to build up 'Data.RRBVector.Internal.Array.Array's.
 -- It is used in the implementation of 'Data.RRBVector.fromList' and 'Data.RRBVector.><'.
+{-# LANGUAGE BangPatterns #-}
 
-module Data.RRBVector.Internal.Buffer
+module Data.RRBVector.Strict.Internal.Buffer
     ( Buffer
     , new
     , push
@@ -13,8 +14,8 @@ module Data.RRBVector.Internal.Buffer
 
 import Control.Monad.ST
 
-import Data.RRBVector.Internal.IntRef
-import qualified Data.RRBVector.Internal.Array as A
+import Data.RRBVector.Strict.Internal.IntRef
+import qualified Data.RRBVector.Strict.Internal.Array as A
 
 -- | A mutable array buffer with a fixed capacity.
 data Buffer s a = Buffer !(A.MutableArray s a) !(IntRef s)
@@ -29,7 +30,7 @@ new capacity = do
 -- | \(O(1)\). Push a new element onto the buffer.
 -- The size of the buffer must not exceed the capacity, but this is not checked.
 push :: Buffer s a -> a -> ST s ()
-push (Buffer buffer offset) x = do
+push (Buffer buffer offset) !x = do
     idx <- readIntRef offset
     A.write buffer idx x
     writeIntRef offset (idx + 1)

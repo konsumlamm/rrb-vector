@@ -7,8 +7,8 @@ import Data.Foldable (toList)
 
 import Test.Tasty.QuickCheck
 
-import qualified Data.RRBVector as V
-import Data.RRBVector.Internal.Debug
+import qualified Data.RRBVector.Strict as V
+import Data.RRBVector.Strict.Internal.Debug
 
 builders :: [[a] -> V.Vector a]
 builders = [V.fromList, fromListUnbalanced]

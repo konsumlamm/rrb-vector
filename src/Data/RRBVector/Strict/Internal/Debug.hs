@@ -4,7 +4,7 @@
 This module contains some debug utilities. It should only be used for debugging/testing purposes.
 -}
 
-module Data.RRBVector.Internal.Debug
+module Data.RRBVector.Strict.Internal.Debug
     ( showTree
     , fromListUnbalanced
     , pattern Empty, pattern Root
@@ -17,10 +17,10 @@ import Data.Foldable (toList)
 import Data.List (intercalate)
 import Data.Primitive.PrimArray (PrimArray, primArrayToList)
 
-import Data.RRBVector.Internal hiding (Empty, Root, Balanced, Unbalanced, Leaf)
-import qualified Data.RRBVector.Internal as RRB
-import Data.RRBVector.Internal.Array (Array)
-import qualified Data.RRBVector.Internal.Buffer as Buffer
+import Data.RRBVector.Strict.Internal hiding (Empty, Root, Balanced, Unbalanced, Leaf)
+import qualified Data.RRBVector.Strict.Internal as RRB
+import Data.RRBVector.Strict.Internal.Array (Array)
+import qualified Data.RRBVector.Strict.Internal.Buffer as Buffer
 
 -- | \(O(n)\). Show the underlying tree of a vector.
 showTree :: (Show a) => Vector a -> String

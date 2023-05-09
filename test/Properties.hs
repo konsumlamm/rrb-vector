@@ -8,7 +8,7 @@ import Data.List (uncons)
 import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
-import qualified Data.RRBVector as V
+import qualified Data.RRBVector.Strict as V
 import Test.QuickCheck.Classes.Base
 import Test.Tasty
 import Test.Tasty.QuickCheck

@@ -18,7 +18,7 @@ The implementation uses Relaxed-Radix-Balanced trees, as described by
 Currently, a branching factor of 16 is used. The tree is strict in its spine, but lazy in its elements.
 -}
 
-module Data.RRBVector
+module Data.RRBVector.Strict
     ( Vector
     -- * Construction
     , empty, singleton, fromList, replicate
@@ -51,4 +51,4 @@ import Data.Foldable.WithIndex
 import Data.Functor.WithIndex
 import Data.Traversable.WithIndex
 
-import Data.RRBVector.Internal
+import Data.RRBVector.Strict.Internal

@@ -10,7 +10,7 @@
 --
 -- __Warning:__ No bound checks are performed!
 
-module Data.RRBVector.Internal.Array
+module Data.RRBVector.Strict.Internal.Array
     ( Array, MutableArray
     , ifoldrStep, ifoldlStep, ifoldrStep', ifoldlStep'
     , empty, singleton, from2
@@ -111,20 +111,20 @@ empty :: Array a
 empty = Array 0 0 $ runSmallArray (newSmallArray 0 uninitialized)
 
 singleton :: a -> Array a
-singleton x = Array 0 1 $ runSmallArray (newSmallArray 1 x)
+singleton !x = Array 0 1 $ runSmallArray (newSmallArray 1 x)
 
 from2 :: a -> a -> Array a
-from2 x y = Array 0 2 $ runSmallArray $ do
+from2 !x !y = Array 0 2 $ runSmallArray $ do
     sma <- newSmallArray 2 x
     writeSmallArray sma 1 y
     pure sma
 
 replicate :: Int -> a -> Array a
-replicate n x = Array 0 n $ runSmallArray (newSmallArray n x)
+replicate n !x = Array 0 n $ runSmallArray (newSmallArray n x)
 
 -- > replicateSnoc n x y = snoc (replicate n x) y
 replicateSnoc :: Int -> a -> a -> Array a
-replicateSnoc n x y = Array 0 len $ runSmallArray $ do
+replicateSnoc n !x !y = Array 0 len $ runSmallArray $ do
     sma <- newSmallArray len x
     writeSmallArray sma n y
     pure sma
@@ -135,17 +135,13 @@ index :: Array a -> Int -> a
 index (Array start _ arr) idx = indexSmallArray arr (start + idx)
 
 update :: Array a -> Int -> a -> Array a
-update (Array start len sa) idx x = Array 0 len $ runSmallArray $ do
+update (Array start len sa) idx !x = Array 0 len $ runSmallArray $ do
     sma <- thawSmallArray sa start len
     writeSmallArray sma idx x
     pure sma
 
 adjust :: Array a -> Int -> (a -> a) -> Array a
-adjust (Array start len sa) idx f = Array 0 len $ runSmallArray $ do
-    sma <- thawSmallArray sa start len
-    x <- indexSmallArrayM sa (start + idx)
-    writeSmallArray sma idx (f x)
-    pure sma
+adjust  = adjust'
 
 adjust' :: Array a -> Int -> (a -> a) -> Array a
 adjust' (Array start len sa) idx f = Array 0 len $ runSmallArray $ do
@@ -170,7 +166,7 @@ last :: Array a -> a
 last arr = index arr (length arr - 1)
 
 snoc :: Array a -> a -> Array a
-snoc (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
+snoc (Array _ len arr) !x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
     copySmallArray sma 0 arr 0 len
     pure sma
@@ -178,7 +174,7 @@ snoc (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
     !len' = len + 1
 
 cons :: Array a -> a -> Array a
-cons (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
+cons (Array _ len arr) !x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
     copySmallArray sma 1 arr 0 len
     pure sma
@@ -195,15 +191,7 @@ Array start1 len1 arr1 ++ Array start2 len2 arr2 = Array 0 len' $ runSmallArray 
     !len' = len1 + len2
 
 map :: (a -> b) -> Array a -> Array b
-map f (Array start len arr) = Array 0 len $ runSmallArray $ do
-    sma <- newSmallArray len uninitialized
-    -- i is the index in arr, j is the index in sma
-    let loop i j = when (j < len) $ do
-            x <- indexSmallArrayM arr i
-            writeSmallArray sma j (f x)
-            loop (i + 1) (j + 1)
-    loop start 0
-    pure sma
+map = map'
 
 map' :: (a -> b) -> Array a -> Array b
 map' f (Array start len arr) = Array 0 len $ runSmallArray $ do
@@ -218,15 +206,7 @@ map' f (Array start len arr) = Array 0 len $ runSmallArray $ do
 
 -- helper function for implementing imap
 imapStep :: Int -> (a -> Int) -> (Int -> a -> b) -> Array a -> Array b
-imapStep i0 step f (Array start len arr) = Array 0 len $ runSmallArray $ do
-    sma <- newSmallArray len uninitialized
-    -- i is the index in arr, j is the index in sma, k is the index for f
-    let loop !i !j !k = when (j < len) $ do
-            x <- indexSmallArrayM arr i
-            writeSmallArray sma j (f k x)
-            loop (i + 1) (j + 1) (k + step x)
-    loop start 0 i0
-    pure sma
+imapStep = imapStep'
 
 -- helper function for implementing imap
 imapStep' :: Int -> (a -> Int) -> (Int -> a -> b) -> Array a -> Array b
@@ -247,9 +227,9 @@ unzipWith f (Array start len arr) = runST $ do
     -- i is the index in arr, j is the index in sma1/sma2
     let loop i j = when (j < len) $ do
             val <- indexSmallArrayM arr i
-            let !(x, y) = f val
-            writeSmallArray sma1 j x
-            writeSmallArray sma2 j y
+            let (x, y) = f val
+            writeSmallArray sma1 j $! x
+            writeSmallArray sma2 j $! y
             loop (i + 1) (j + 1)
     loop start 0
     arr1 <- unsafeFreezeSmallArray sma1
@@ -262,12 +242,7 @@ runSTA :: Int -> STA a -> Array a
 runSTA len (STA m) = Array 0 len (runST $ newSmallArray len uninitialized >>= m)
 
 traverse :: (Applicative f) => (a -> f b) -> Array a -> f (Array b)
-traverse f (Array start len arr) =
-    -- i is the index in arr, j is the index in sma
-    let go i j
-            | j == len = pure $ STA unsafeFreezeSmallArray
-            | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f x) (go (i + 1) (j + 1))
-    in runSTA len <$> go start 0
+traverse = traverse'
 
 traverse' :: (Applicative f) => (a -> f b) -> Array a -> f (Array b)
 traverse' f (Array start len arr) =
@@ -279,12 +254,7 @@ traverse' f (Array start len arr) =
 
 -- helper function for implementing itraverse
 itraverseStep :: (Applicative f) => Int -> (a -> Int) -> (Int -> a -> f b) -> Array a -> f (Array b)
-itraverseStep i0 step f (Array start len arr) =
-    -- i is the index in arr, j is the index in sma, k is the index for f
-    let go !i !j !k
-            | j == len = pure $ STA unsafeFreezeSmallArray
-            | (# x #) <- indexSmallArray## arr i = liftA2 (\y (STA m) -> STA $ \sma -> writeSmallArray sma j y *> m sma) (f k x) (go (i + 1) (j + 1) (k + step x))
-    in runSTA len <$> go start 0 i0
+itraverseStep = itraverseStep'
 
 -- helper function for implementing itraverse
 itraverseStep' :: (Applicative f) => Int -> (a -> Int) -> (Int -> a -> f b) -> Array a -> f (Array b)
@@ -302,7 +272,7 @@ read :: MutableArray s a -> Int -> ST s a
 read (MutableArray start _ arr) idx = readSmallArray arr (start + idx)
 
 write :: MutableArray s a -> Int -> a -> ST s ()
-write (MutableArray start _ arr) idx = writeSmallArray arr (start + idx)
+write (MutableArray start _ arr) idx !x = writeSmallArray arr (start + idx) x
 
 freeze :: MutableArray s a -> Int -> Int -> ST s (Array a)
 freeze (MutableArray start _ arr) idx len = Array 0 len <$> freezeSmallArray arr (start + idx) len

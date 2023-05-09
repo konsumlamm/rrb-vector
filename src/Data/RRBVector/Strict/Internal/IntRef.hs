@@ -2,7 +2,7 @@
 --
 -- It works like "Data.STRef", but is specialized to 'Int' and more efficient.
 
-module Data.RRBVector.Internal.IntRef
+module Data.RRBVector.Strict.Internal.IntRef
     ( IntRef
     , newIntRef
     , readIntRef

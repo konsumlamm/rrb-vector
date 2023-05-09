@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Data.RRBVector.Internal
+module Data.RRBVector.Strict.Internal
     ( Vector(..)
     , Tree(..)
     , Shift
@@ -57,8 +57,8 @@ import Data.Foldable.WithIndex
 import Data.Traversable.WithIndex
 
 import Data.Primitive.PrimArray hiding (sizeofPrimArray) -- use @length@ of the @A.Array@ instead
-import qualified Data.RRBVector.Internal.Array as A
-import qualified Data.RRBVector.Internal.Buffer as Buffer
+import qualified Data.RRBVector.Strict.Internal.Array as A
+import qualified Data.RRBVector.Strict.Internal.Buffer as Buffer
 
 infixr 5 ><
 infixr 5 <|
