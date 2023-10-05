@@ -46,7 +46,7 @@ library
     Data.RRBVector.Internal.Array
     Data.RRBVector.Internal.Buffer
     Data.RRBVector.Internal.IntRef
-  build-depends:        base >= 4.11 && < 5, deepseq ^>= 1.4.3, indexed-traversable ^>= 0.1, primitive >= 0.7 && < 0.9
+  build-depends:        base >= 4.11 && < 5, deepseq >= 1.4.3 && < 1.6, indexed-traversable ^>= 0.1, primitive >= 0.7 && < 0.10
   ghc-options:          -O2 -Wall -Wno-name-shadowing -Werror=missing-methods -Werror=missing-fields
   default-language:     Haskell2010
 

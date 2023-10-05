@@ -144,7 +144,7 @@ computeSizes :: Shift -> A.Array (Tree a) -> Tree a
 computeSizes !sh arr
     | isBalanced = Balanced arr
     | otherwise = runST $ do
-        sizes <- newPrimArray (length arr)
+        sizes <- newPrimArray len
         let loop acc i
                 | i < len =
                     let size = treeSize (down sh) (A.index arr i)
