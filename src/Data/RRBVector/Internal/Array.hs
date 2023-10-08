@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -28,7 +29,9 @@ module Data.RRBVector.Internal.Array
     , freeze, thaw
     ) where
 
-import Control.Applicative (Applicative(liftA2))
+#if !(MIN_VERSION_base(4,18,0))
+import Control.Applicative (liftA2)
+#endif
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.ST

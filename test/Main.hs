@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 import Test.Tasty
 import Test.Tasty.QuickCheck
 

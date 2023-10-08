@@ -30,7 +30,11 @@ module Data.RRBVector.Internal
     , zip, zipWith, unzip, unzipWith
     ) where
 
+#if !(MIN_VERSION_base(4,18,0))
 import Control.Applicative (Alternative, liftA2)
+#else
+import Control.Applicative (Alternative)
+#endif
 import qualified Control.Applicative
 import Control.DeepSeq
 import Control.Monad (when, MonadPlus)

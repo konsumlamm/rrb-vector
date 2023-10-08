@@ -1,8 +1,12 @@
+{-# LANGUAGE CPP #-}
+
 module Properties
     ( properties
     ) where
 
+#if !(MIN_VERSION_base(4,18,0))
 import Control.Applicative (liftA2)
+#endif
 import Data.Foldable (Foldable(..))
 import Data.List (uncons)
 import Data.Proxy (Proxy(..))
