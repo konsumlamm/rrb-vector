@@ -173,17 +173,17 @@ last :: Array a -> a
 last arr = index arr (length arr - 1)
 
 snoc :: Array a -> a -> Array a
-snoc (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
+snoc (Array start len arr) x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
-    copySmallArray sma 0 arr 0 len
+    copySmallArray sma 0 arr start len
     pure sma
   where
     !len' = len + 1
 
 cons :: Array a -> a -> Array a
-cons (Array _ len arr) x = Array 0 len' $ runSmallArray $ do
+cons (Array start len arr) x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
-    copySmallArray sma 1 arr 0 len
+    copySmallArray sma 1 arr start len
     pure sma
   where
     !len' = len + 1
