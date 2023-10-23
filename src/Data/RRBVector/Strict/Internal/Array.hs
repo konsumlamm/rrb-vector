@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -28,7 +29,9 @@ module Data.RRBVector.Strict.Internal.Array
     , freeze, thaw
     ) where
 
-import Control.Applicative (Applicative(liftA2))
+#if !(MIN_VERSION_base(4,18,0))
+import Control.Applicative (liftA2)
+#endif
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.ST
@@ -166,17 +169,17 @@ last :: Array a -> a
 last arr = index arr (length arr - 1)
 
 snoc :: Array a -> a -> Array a
-snoc (Array _ len arr) !x = Array 0 len' $ runSmallArray $ do
+snoc (Array start len arr) !x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
-    copySmallArray sma 0 arr 0 len
+    copySmallArray sma 0 arr start len
     pure sma
   where
     !len' = len + 1
 
 cons :: Array a -> a -> Array a
-cons (Array _ len arr) !x = Array 0 len' $ runSmallArray $ do
+cons (Array start len arr) !x = Array 0 len' $ runSmallArray $ do
     sma <- newSmallArray len' x
-    copySmallArray sma 1 arr 0 len
+    copySmallArray sma 1 arr start len
     pure sma
   where
     !len' = len + 1

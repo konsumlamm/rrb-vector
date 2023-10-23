@@ -1,5 +1,5 @@
 name:               rrb-vector-strict
-version:            0.2.0.0
+version:            0.2.0.1
 synopsis:           Efficient RRB-Vectors
 description:
   An RRB-Vector is an efficient sequence data structure.
@@ -30,9 +30,9 @@ tested-with:
   GHC == 8.8.4
   GHC == 8.10.7
   GHC == 9.0.2
-  GHC == 9.2.7
-  GHC == 9.4.4
-  GHC == 9.6.1
+  GHC == 9.2.8
+  GHC == 9.4.7
+  GHC == 9.6.3
 
 source-repository head
   type:     git
@@ -48,7 +48,7 @@ library
     Data.RRBVector.Strict.Internal.Array
     Data.RRBVector.Strict.Internal.Buffer
     Data.RRBVector.Strict.Internal.IntRef
-  build-depends:        base >= 4.11 && < 5, deepseq ^>= 1.4.3, indexed-traversable ^>= 0.1, primitive >= 0.7 && < 0.9
+  build-depends:        base >= 4.11 && < 5, deepseq >= 1.4.3 && < 1.6, indexed-traversable ^>= 0.1, primitive >= 0.7 && < 0.10
   ghc-options:          -O2 -Wall -Wno-name-shadowing -Werror=missing-methods -Werror=missing-fields
   default-language:     Haskell2010
 

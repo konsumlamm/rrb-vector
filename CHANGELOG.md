@@ -1,4 +1,8 @@
-# 0.2.0.0
+# 0.2.0.1 - October 2023
+
+* Support `primitive-0.9` and `deepseq-1.5`
+
+# 0.2.0.0 - February 2023
 
 * Add `map'` & `unzipWith`
 * Make `zip` & `unzip` more strict
@@ -7,6 +11,7 @@
 * Implement `ifoldMap` in the `FoldableWithIndex` instance
 * Implement `fail` in the `Monad` instance
 * Add `Shift`, `Tree` and unidirectional pattern synonyms for `Vector` and `Tree` to `Data.RRBVector.Internal.Debug`
+* Support `primitive-0.8`
 
 * Test typeclass laws
 

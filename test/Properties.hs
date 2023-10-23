@@ -1,8 +1,12 @@
+{-# LANGUAGE CPP #-}
+
 module Properties
     ( properties
     ) where
 
+#if !(MIN_VERSION_base(4,18,0))
 import Control.Applicative (liftA2)
+#endif
 import Data.Foldable (Foldable(..))
 import Data.List (uncons)
 import Data.Proxy (Proxy(..))
@@ -146,6 +150,7 @@ properties = testGroup "properties"
         ]
     , instances
     , laws
+    , issues
     ]
 
 instances :: TestTree
@@ -214,4 +219,13 @@ laws = testGroup "typeclass laws"
     , testLaws $ monadPlusLaws proxyV
     , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 5000) . testLaws $ monadZipLaws proxyV
     , localOption (QuickCheckMaxSize 100) . testLaws $ traversableLaws proxyV
+    ]
+
+-- old issues, to avoid regressions
+issues :: TestTree
+issues = testGroup "issues"
+    -- https://github.com/konsumlamm/rrb-vector/issues/10
+    [ testProperty "#10" $ \x v -> case V.viewl v of
+            Nothing -> property True
+            Just (_, v') -> x V.<| v' === V.update 0 x v
     ]
