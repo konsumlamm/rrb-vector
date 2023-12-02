@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
 
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Properties
     ( properties
     ) where
@@ -12,6 +14,7 @@ import Data.List (uncons)
 import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
+import qualified Data.Sequence as Seq
 import qualified Data.RRBVector as V
 import Test.QuickCheck.Classes.Base
 import Test.Tasty
@@ -134,6 +137,22 @@ properties = testGroup "properties"
         , testProperty "returns the vector for too large indices" $ \v -> forAll (arbitrary `suchThat` (>= length v)) $ \i -> V.deleteAt i v === v
         , testProperty "satisfies `deleteAt 0 v = drop 1 v`" $ \v -> V.deleteAt 0 v === V.drop 1 v
         , testProperty "satisfies `deleteAt (length v - 1) v = take (length v - 1) v`" $ \v -> V.deleteAt (length v - 1) v === V.take (length v - 1) v
+        ]
+    , testGroup "findIndexL"
+        [ testProperty "finds the first index" $ \v (Fn f) -> V.findIndexL f v === Seq.findIndexL f (Seq.fromList (toList v))
+        , testProperty "returns Nothing for the empty vector" $ \(Fn f) -> V.findIndexL f V.empty === Nothing
+        ]
+    , testGroup "findIndexR"
+        [ testProperty "finds the last index" $ \v (Fn f) -> V.findIndexR f v === Seq.findIndexR f (Seq.fromList (toList v))
+        , testProperty "returns Nothing for the empty vector" $ \(Fn f) -> V.findIndexR f V.empty === Nothing
+        ]
+    , localOption (QuickCheckMaxSize 1000) $ testGroup "findIndicesL"
+        [ testProperty "finds the indices starting from the left" $ \v (Fn f) -> V.findIndicesL f v === Seq.findIndicesL f (Seq.fromList (toList v))
+        , testProperty "returns [] for the empty vector" $ \(Fn f) -> V.findIndicesL f V.empty === []
+        ]
+    , localOption (QuickCheckMaxSize 1000) $ testGroup "findIndicesR"
+        [ testProperty "finds the indices starting from the right" $ \v (Fn f) -> V.findIndicesR f v === Seq.findIndicesR f (Seq.fromList (toList v))
+        , testProperty "returns [] for the empty vector" $ \(Fn f) -> V.findIndicesR f V.empty === []
         ]
     , testGroup "reverse"
         [ testProperty "reverses the vector" $ \v -> toList (V.reverse v) === reverse (toList v)

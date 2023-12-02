@@ -1,3 +1,8 @@
+# 0.2.1.0 - December 2023
+
+* Add `findIndexL`, `findIndexR`, `findIndicesL`, `findIndicesR`
+* Fix bug in `|>` & `<|` ([#10](https://github.com/konsumlamm/rrb-vector/issues/10))
+
 # 0.2.0.1 - October 2023
 
 * Support `primitive-0.9` and `deepseq-1.5`

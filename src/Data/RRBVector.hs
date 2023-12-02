@@ -33,6 +33,7 @@ module Data.RRBVector
     , adjust, adjust'
     , take, drop, splitAt
     , insertAt, deleteAt
+    , findIndexL, findIndexR, findIndicesL, findIndicesR
     -- * With Index
     --
     -- | Reexported from [indexed-traversable](https://hackage.haskell.org/package/indexed-traversable).

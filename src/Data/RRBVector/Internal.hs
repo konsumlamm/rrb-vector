@@ -24,6 +24,7 @@ module Data.RRBVector.Internal
     , adjust, adjust'
     , take, drop, splitAt
     , insertAt, deleteAt
+    , findIndexL, findIndexR, findIndicesL, findIndicesR
     -- * Transformations
     , map, map', reverse
     -- * Zipping and unzipping
@@ -650,6 +651,22 @@ insertAt i x v = let (left, right) = splitAt i v in (left |> x) >< right
 -- If the index is out of range, return the original vector.
 deleteAt :: Int -> Vector a -> Vector a
 deleteAt i v = let (left, right) = splitAt (i + 1) v in take i left >< right
+
+-- | \(O(n)\). Find the first index from the left that satisfies the predicate.
+findIndexL :: (a -> Bool) -> Vector a -> Maybe Int
+findIndexL f = ifoldr (\i x acc -> if f x then Just i else acc) Nothing
+
+-- | \(O(n)\). Find the first index from the right that satisfies the predicate.
+findIndexR :: (a -> Bool) -> Vector a -> Maybe Int
+findIndexR f = ifoldl (\i acc x -> if f x then Just i else acc) Nothing
+
+-- | \(O(n)\). Find the indices that satisfy the predicate, starting from the left.
+findIndicesL :: (a -> Bool) -> Vector a -> [Int]
+findIndicesL f = ifoldr (\i x acc -> if f x then i : acc else acc) []
+
+-- | \(O(n)\). Find the indices that satisfy the predicate, starting from the right.
+findIndicesR :: (a -> Bool) -> Vector a -> [Int]
+findIndicesR f = ifoldl (\i acc x -> if f x then i : acc else acc) []
 
 -- concatenation
 
