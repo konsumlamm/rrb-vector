@@ -14,7 +14,7 @@
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
     , ifoldrStep, ifoldlStep, ifoldrStep', ifoldlStep'
-    , empty, singleton, from2
+    , empty, singleton, from2, wrap
     , replicate, replicateSnoc
     , index, head, last
     , update, adjust, adjust'
@@ -121,6 +121,9 @@ from2 x y = Array 0 2 $ runSmallArray $ do
     sma <- newSmallArray 2 x
     writeSmallArray sma 1 y
     pure sma
+
+wrap :: SmallArray a -> Array a
+wrap arr = Array 0 (sizeofSmallArray arr) arr
 
 replicate :: Int -> a -> Array a
 replicate n x = Array 0 n $ runSmallArray (newSmallArray n x)
