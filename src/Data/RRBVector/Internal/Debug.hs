@@ -10,16 +10,19 @@ module Data.RRBVector.Internal.Debug
     , pattern Empty, pattern Root
     , Tree, Shift
     , pattern Balanced, pattern Unbalanced, pattern Leaf
+    , Invariant, valid
     ) where
 
 import Control.Monad.ST (runST)
-import Data.Foldable (toList)
+import Data.Bits (shiftL)
+import Data.Foldable (foldl', toList, traverse_)
 import Data.List (intercalate)
-import Data.Primitive.PrimArray (PrimArray, primArrayToList)
+import Data.Primitive.PrimArray (PrimArray, primArrayToList, indexPrimArray, sizeofPrimArray)
 
 import Data.RRBVector.Internal hiding (Empty, Root, Balanced, Unbalanced, Leaf)
 import qualified Data.RRBVector.Internal as RRB
 import Data.RRBVector.Internal.Array (Array)
+import qualified Data.RRBVector.Internal.Array as A
 import qualified Data.RRBVector.Internal.Buffer as Buffer
 
 -- | \(O(n)\). Show the underlying tree of a vector.
@@ -85,3 +88,113 @@ pattern Leaf :: Array a -> Tree a
 pattern Leaf arr <- RRB.Leaf arr
 
 {-# COMPLETE Balanced, Unbalanced, Leaf #-}
+
+-- | Structural invariants a vector is expected to hold.
+data Invariant
+    = RootSizeGt0      -- Root: Size > 0
+    | RootShiftDiv     -- Root: The shift at the root is divisible by blockShift
+    | RootSizeCorrect  -- Root: The size at the root is correct
+    | RootGt1Child     -- Root: The root has more than 1 child if not a Leaf
+    | BalShiftGt0      -- Balanced: Shift > 0
+    | BalNumChildren   -- Balanced: The number of children is blockSize unless
+                       -- the parent is unbalanced or the node is on the right
+                       -- edge in which case it is in [1,blockSize]
+    | BalFullChildren  -- Balanced: All children are full, except for the last
+                       -- if the node is on the right edge
+    | UnbalShiftGt0    -- Unbalanced: Shift > 0
+    | UnbalParentUnbal -- Unbalanced: Parent is Unbalanced
+    | UnbalNumChildren -- Unbalanced: The number of children is in [1,blockSize]
+    | UnbalSizes       -- Unbalanced: The sizes array is correct
+    | UnbalNotBal      -- Unbalanced: The tree is not full enough to be a
+                       -- Balanced
+    | LeafShift0       -- Leaf: Shift == 0
+    | LeafNumElems     -- Leaf: The number of elements is in [1,blockSize]
+    deriving Show
+
+assert :: Invariant -> Bool -> Either Invariant ()
+assert i False = Left i
+assert _ True = pure ()
+
+-- | Check tree invariants. Returns @Left@ on finding a violated invariant.
+valid :: Vector a -> Either Invariant ()
+valid RRB.Empty = pure ()
+valid (RRB.Root size sh tree) = do
+    assert RootSizeGt0 $ size > 0
+    assert RootShiftDiv $ sh `mod` blockShift == 0
+    assert RootSizeCorrect $ size == countElems tree
+    assert RootGt1Child $ case tree of
+        Balanced arr -> length arr > 1
+        Unbalanced arr _ -> length arr > 1
+        Leaf _ -> True
+    validTree Unbal sh tree
+
+data NodeDesc
+    = Bal           -- parent is Balanced
+    | BalRightEdge  -- parent is Balanced and this node is on the right edge
+    | Unbal         -- parent is Unbalanced
+
+validTree :: NodeDesc -> Shift -> Tree a -> Either Invariant ()
+validTree desc sh (RRB.Balanced arr) = do
+    assert BalShiftGt0 $ sh > 0
+    assert BalNumChildren $ case desc of
+        Bal -> n == blockSize
+        BalRightEdge -> n >= 1 && n <= blockSize
+        Unbal -> n >= 1 && n <= blockSize
+    assert BalFullChildren $
+        all (\t -> countElems t == 1 `shiftL` sh) expectedFullChildren
+    traverse_ (validTree Bal (down sh)) arrInit
+    validTree descLast (down sh) (A.last arr)
+  where
+    n = length arr
+    arrInit = A.take arr (n-1)
+    expectedFullChildren = case desc of
+        Bal -> arr
+        BalRightEdge -> arrInit
+        Unbal -> arrInit
+    descLast = case desc of
+        Bal -> Bal
+        BalRightEdge -> BalRightEdge
+        Unbal -> BalRightEdge
+validTree desc sh (RRB.Unbalanced arr sizes) = do
+    assert UnbalShiftGt0 $ sh > 0
+    case desc of
+        Bal -> assert UnbalParentUnbal False
+        BalRightEdge -> assert UnbalParentUnbal False
+        Unbal -> assert UnbalNumChildren $ n >= 1 && n <= blockSize
+    assert UnbalSizes $ n == sizeofPrimArray sizes
+    assert UnbalSizes $
+        all (\i -> countElems (A.index arr i) == getSize sizes i) [0 .. n-1]
+    assert UnbalNotBal $ not (couldBeBalanced sh arr sizes)
+    traverse_ (validTree Unbal (down sh)) arr
+  where
+    n = length arr
+validTree desc sh (RRB.Leaf arr) = do
+    assert LeafShift0 $ sh == 0
+    assert LeafNumElems $ case desc of
+        Bal -> n == blockSize
+        BalRightEdge -> n >= 1 && n <= blockSize
+        Unbal -> n >= 1 && n <= blockSize
+  where
+    n = length arr
+
+-- | Check whether an Unbalanced node could be Balanced.
+couldBeBalanced :: Shift -> A.Array (Tree a) -> PrimArray Int -> Bool
+couldBeBalanced sh arr sizes =
+   all (\i -> getSize sizes i == 1 `shiftL` sh) [0 .. n-2] &&
+   (case A.last arr of
+       Balanced _ -> True
+       Unbalanced arr' sizes' -> couldBeBalanced (down sh) arr' sizes'
+       Leaf _ -> True)
+  where
+    n = length arr
+
+getSize :: PrimArray Int -> Int -> Int
+getSize sizes 0 = indexPrimArray sizes 0
+getSize sizes i = indexPrimArray sizes i - indexPrimArray sizes (i-1)
+
+countElems :: Tree a -> Int
+countElems (RRB.Balanced arr) =
+    foldl' (\acc tree -> acc + countElems tree) 0 arr
+countElems (RRB.Unbalanced arr _) =
+    foldl' (\acc tree -> acc + countElems tree) 0 arr
+countElems (RRB.Leaf arr) = length arr
