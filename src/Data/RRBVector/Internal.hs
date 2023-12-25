@@ -678,12 +678,9 @@ findIndicesR f = ifoldl (\i acc x -> if f x then i : acc else acc) []
 Empty >< v = v
 v >< Empty = v
 Root size1 sh1 tree1 >< Root size2 sh2 tree2 =
-    let maxShift = max sh1 sh2
-        upMaxShift = up maxShift
+    let upMaxShift = up (max sh1 sh2)
         newArr = mergeTrees tree1 sh1 tree2 sh2
-    in if length newArr == 1
-        then Root (size1 + size2) maxShift (A.head newArr)
-        else Root (size1 + size2) upMaxShift (computeSizes upMaxShift newArr)
+    in normalize $ Root (size1 + size2) upMaxShift (computeSizes upMaxShift newArr)
   where
     mergeTrees tree1@(Leaf arr1) !_ tree2@(Leaf arr2) !_
         | length arr1 == blockSize = A.from2 tree1 tree2
