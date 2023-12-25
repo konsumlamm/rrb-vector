@@ -768,7 +768,9 @@ x <| Root size sh tree
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
     -- the size is computed for efficient calculation of the shift in a balanced subtree
     computeShift !sz !sh !min (Balanced _) =
-        let newShift = (log2 sz `div` blockShift) * blockShift
+        let hiShift = (log2 (sz - 1) `div` blockShift) * blockShift
+            hi = (sz - 1) `unsafeShiftR` hiShift
+            newShift = if hi < blockMask then hiShift else hiShift + blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
         let sz' = indexPrimArray sizes 0 -- the size of the first subtree
