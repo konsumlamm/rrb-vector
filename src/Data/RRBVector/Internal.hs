@@ -174,7 +174,7 @@ computeSizes !sh arr
           where
             subtree = A.index arr i
 
--- Integer log base 2.
+-- | Integer log base 2.
 log2 :: Int -> Int
 log2 x = bitSizeMinus1 - countLeadingZeros x
   where
@@ -768,8 +768,9 @@ x <| Root size sh tree
     -- compute the shift at which the new branch needs to be inserted (0 means there is space in the leaf)
     -- the size is computed for efficient calculation of the shift in a balanced subtree
     computeShift !sz !sh !min (Balanced _) =
-        let hiShift = (log2 (sz - 1) `div` blockShift) * blockShift
-            hi = (sz - 1) `unsafeShiftR` hiShift
+        -- @sz - 1@ is the index of the last element
+        let hiShift = max ((log2 (sz - 1) `div` blockShift) * blockShift) 0 -- the shift of the root when normalizing
+            hi = (sz - 1) `unsafeShiftR` hiShift -- the length of the root node when normalizing minus 1
             newShift = if hi < blockMask then hiShift else hiShift + blockShift
         in if newShift > sh then min else newShift
     computeShift _ sh min (Unbalanced arr sizes) =
