@@ -16,6 +16,7 @@ import Prelude hiding ((==)) -- use @===@ instead
 
 import qualified Data.Sequence as Seq
 import qualified Data.RRBVector as V
+import qualified Data.RRBVector.Internal.Debug as VDebug
 import Test.QuickCheck.Classes.Base
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -65,6 +66,13 @@ proxyVInt = Proxy
 proxyV :: Proxy V
 proxyV = Proxy
 
+checkValid :: Show a => V a -> Property
+checkValid v = case VDebug.valid v of
+    Left invariant ->
+        counterexample ("Invariant violated: " ++ show invariant) $
+        counterexample (VDebug.showTree v) False
+    _ -> property ()
+
 properties :: TestTree
 properties = testGroup "properties"
     [ testGroup "fromList"
@@ -72,22 +80,27 @@ properties = testGroup "properties"
         , testProperty "satisfies `toList . fromList = id`" $ \ls -> toList (V.fromList ls) === ls
         , testProperty "satisfies `fromList [] = empty`" $ V.fromList [] === V.empty
         , testProperty "satisfies `fromList [x] = singleton x`" $ \x -> V.fromList [x] === V.singleton x
+        , testProperty "valid" $ \xs -> checkValid (V.fromList xs)
         ]
     , testGroup "replicate"
         [ testProperty "satisifes `replicate n == fromList . replicate n`" $ \(Positive n) x -> V.replicate n x === V.fromList (replicate n x)
         , testProperty "returns the empty vector for non-positive n" $ \(NonPositive n) x -> V.replicate n x === V.empty
+        , testProperty "valid" $ \n x -> checkValid (V.replicate n x)
         ]
     , testGroup "<|"
         [ testProperty "prepends an element" $ \x v -> toList (x V.<| v) === x : toList v
         , testProperty "works for the empty vector" $ \x -> x V.<| V.empty === V.singleton x
+        , testProperty "valid" $ \x v -> checkValid (x V.<| v)
         ]
     , testGroup "|>"
         [ testProperty "appends an element" $ \v x -> toList (v V.|> x) === toList v ++ [x]
         , testProperty "works for the empty vector" $ \x -> V.empty V.|> x === V.singleton x
+        , testProperty "valid" $ \v x -> checkValid (v V.|> x)
         ]
     , testGroup "><"
         [ testProperty "concatenates two vectors" $ \v1 v2 -> toList (v1 V.>< v2) === toList v1 ++ toList v2
         , testProperty "works for the empty vector" $ \v -> (V.empty V.>< v === v) .&&. (v V.>< V.empty === v)
+        , testProperty "valid" $ \v1 v2 -> checkValid (v1 V.>< v2)
         ]
     , testGroup "lookup"
         [ testProperty "gets the element at the index" $ \v (NonNegative i) -> V.lookup i v === lookupList i (toList v)
@@ -96,33 +109,41 @@ properties = testGroup "properties"
     , testGroup "update"
         [ testProperty "updates the element at the index" $ \v (NonNegative i) x -> toList (V.update i x v) === updateList i x (toList v)
         , testProperty "returns the vector for negative indices" $ \v (Negative i) x -> V.update i x v === v
+        , testProperty "valid" $ \v i x -> checkValid (V.update i x v)
         ]
     , testGroup "adjust"
         [ testProperty "adjusts the element at the index" $ \v (NonNegative i) (Fn f) -> toList (V.adjust i f v) === adjustList i f (toList v)
         , testProperty "returns the vector for negative indices" $ \v (Negative i) (Fn f) -> V.adjust i f v === v
+        , testProperty "valid" $ \v i (Fn f) -> checkValid (V.adjust i f v)
         ]
     , testGroup "adjust'"
         [ testProperty "adjusts the element at the index" $ \v (NonNegative i) (Fn f) -> toList (V.adjust' i f v) === adjustList i f (toList v)
         , testProperty "returns the vector for negative indices" $ \v (Negative i) (Fn f) -> V.adjust' i f v === v
+        , testProperty "valid" $ \v i (Fn f) -> checkValid (V.adjust' i f v)
         ]
     , testGroup "viewl"
         [ testProperty "works like uncons" $ \v -> fmap (\(x, xs) -> (x, toList xs)) (V.viewl v) === uncons (toList v)
         , testProperty "works for the empty vector" $ V.viewl V.empty === Nothing
+        , testProperty "valid" $ \v -> fmap (checkValid . snd) (V.viewl v)
         ]
     , testGroup "viewr"
         [ testProperty "works like unsnoc" $ \v -> fmap (\(xs, x) -> (toList xs, x)) (V.viewr v) === unsnoc (toList v)
         , testProperty "works for the empty vector" $ V.viewr V.empty === Nothing
+        , testProperty "valid" $ \v -> fmap (checkValid . fst) (V.viewr v)
         ]
     , testGroup "take"
         [ testProperty "takes n elements" $ \v (Positive n) -> toList (V.take n v) === take n (toList v)
         , testProperty "returns the empty vector for non-positive n" $ \v (NonPositive n) -> V.take n v === V.empty
+        , testProperty "valid" $ \v n -> checkValid (V.take n v)
         ]
     , testGroup "drop"
         [ testProperty "drops n elements" $ \v (Positive n) -> toList (V.drop n v) === drop n (toList v)
         , testProperty "returns the vector for non-positive n" $ \v (NonPositive n) -> V.drop n v === v
+        , testProperty "valid" $ \v n -> checkValid (V.drop v n)
         ]
     , testGroup "splitAt"
         [ testProperty "splits the vector" $ \v n -> let (v1, v2) = V.splitAt n v in (toList v1, toList v2) === splitAt n (toList v)
+        , testProperty "valid" $ \v n -> let (v1, v2) = V.splitAt n v in checkValid v1 .&&. checkValid v2
         ]
     , testGroup "insertAt"
         [ testProperty "inserts an element" $ \v i x -> toList (V.insertAt i x v) === insertAtList i x (toList v)
@@ -130,6 +151,7 @@ properties = testGroup "properties"
         , testProperty "appends for too large indices" $ \v x -> forAll (arbitrary `suchThat` (> length v)) $ \i -> V.insertAt i x v === v V.|> x
         , testProperty "satisfies `insertAt 0 x v = x <| v`" $ \v x -> V.insertAt 0 x v === x V.<| v
         , testProperty "satisfies `insertAt (length v) x v = v |> x`" $ \v x -> V.insertAt (length v) x v === v V.|> x
+        , testProperty "valid" $ \v i x -> checkValid (V.insertAt i x v)
         ]
     , testGroup "deleteAt"
         [ testProperty "deletes an element" $ \v (NonNegative i) -> toList (V.deleteAt i v) === deleteAtList i (toList v)
@@ -137,6 +159,7 @@ properties = testGroup "properties"
         , testProperty "returns the vector for too large indices" $ \v -> forAll (arbitrary `suchThat` (>= length v)) $ \i -> V.deleteAt i v === v
         , testProperty "satisfies `deleteAt 0 v = drop 1 v`" $ \v -> V.deleteAt 0 v === V.drop 1 v
         , testProperty "satisfies `deleteAt (length v - 1) v = take (length v - 1) v`" $ \v -> V.deleteAt (length v - 1) v === V.take (length v - 1) v
+        , testProperty "valid" $ \v i -> checkValid (V.deleteAt i v)
         ]
     , testGroup "findIndexL"
         [ testProperty "finds the first index" $ \v (Fn f) -> V.findIndexL f v === Seq.findIndexL f (Seq.fromList (toList v))
@@ -156,16 +179,20 @@ properties = testGroup "properties"
         ]
     , testGroup "reverse"
         [ testProperty "reverses the vector" $ \v -> toList (V.reverse v) === reverse (toList v)
+        , testProperty "valid" $ \v -> checkValid (V.reverse v)
         ]
     , testGroup "zip"
         [ testProperty "zips two vectors" $ \v1 v2 -> toList (V.zip v1 v2) === zip (toList v1) (toList v2)
+        , testProperty "valid" $ \v1 v2 -> checkValid (V.zip v1 v2)
         ]
     , testGroup "zipWith"
         [ testProperty "zips two vectors with a function" $ \v1 v2 -> toList (V.zipWith (+) v1 v2) === zipWith (+) (toList v1) (toList v2)
         , testProperty "satisfies `zipWith (,) v1 v2 = zip v1 v2`" $ \v1 v2 -> V.zipWith (,) v1 v2 === V.zip v1 v2
+        , testProperty "valid" $ \v1 v2 (Fn2 f) -> checkValid (V.zipWith f v1 v2)
         ]
     , testGroup "unzip"
         [ testProperty "unzips the vector" $ \v -> (\(xs, ys) -> (toList xs, toList ys)) (V.unzip v) === unzip (toList v)
+        , testProperty "valid" $ \v -> let (v1, v2) = V.unzip v in checkValid v1 .&&. checkValid v2
         ]
     , instances
     , laws
