@@ -54,7 +54,7 @@ jobs:
   wasm:
     runs-on: ubuntu-latest
     env:
-      version: wasm32-wasi-9.8.0.20230927
+      version: wasm32-wasi-9.8.1
     steps:
     - uses: actions/checkout@v4
     - name: Setup
