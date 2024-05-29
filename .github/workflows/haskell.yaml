@@ -73,3 +73,6 @@ jobs:
     - name: Build
       run: |
         cabal --with-compiler=wasm32-wasi-ghc --with-hc-pkg=wasm32-wasi-ghc-pkg build
+    - name: Test
+      run: |
+        cabal --with-compiler=wasm32-wasi-ghc --with-hc-pkg=wasm32-wasi-ghc-pkg test --enable-tests --test-show-details=direct
