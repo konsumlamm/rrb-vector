@@ -7,7 +7,6 @@ module Data.RRBVector.Internal.Sorting
     , unstableSortOn
     ) where
 
-import Data.Foldable1
 import Data.Sequence.Internal.Sorting hiding
     ( buildQ, buildTQ, buildIQ, buildITQ
     , foldToMaybeTree, foldToMaybeWithIndexTree
@@ -16,7 +15,7 @@ import Data.Sequence.Internal.Sorting hiding
     )
 
 import Data.RRBVector.Internal
-import Data.RRBVector.Internal.Array (ifoldrMap1Step)
+import Data.RRBVector.Internal.Array (foldrMap1, ifoldrMap1Step)
 
 -- stable sorting
 
@@ -78,9 +77,9 @@ foldToMaybeTree :: (b -> b -> b) -> (a -> b) -> Vector a -> Maybe b
 foldToMaybeTree _ _ Empty = Nothing
 foldToMaybeTree (<+>) f (Root _ _ tree) = Just (foldTree tree)
   where
-    foldTree (Balanced arr) = foldrMap1 foldTree ((<+>) . foldTree) arr
-    foldTree (Unbalanced arr _) = foldrMap1 foldTree ((<+>) . foldTree) arr
-    foldTree (Leaf arr) = foldrMap1 f ((<+>) . f) arr
+    foldTree (Balanced arr) = foldrMap1 foldTree (<+>) arr
+    foldTree (Unbalanced arr _) = foldrMap1 foldTree (<+>) arr
+    foldTree (Leaf arr) = foldrMap1 f (<+>) arr
 
 buildQ :: (a -> a -> Ordering) -> (a -> Queue a) -> Vector a -> Maybe (Queue a)
 buildQ cmp = foldToMaybeTree (mergeQ cmp)
