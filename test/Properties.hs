@@ -10,7 +10,8 @@ module Properties
 import Control.Applicative (liftA2)
 #endif
 import Data.Foldable (Foldable(..))
-import Data.List (uncons)
+import Data.List (uncons, sort, sortOn)
+import Data.Ord (comparing, Down(..))
 import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
@@ -193,6 +194,30 @@ properties = testGroup "properties"
     , testGroup "unzip"
         [ testProperty "unzips the vector" $ \v -> (\(xs, ys) -> (toList xs, toList ys)) (V.unzip v) === unzip (toList v)
         , testProperty "valid" $ \v -> let (v1, v2) = V.unzip v in checkValid v1 .&&. checkValid v2
+        ]
+    , localOption (QuickCheckMaxSize 1000) $ testGroup "sorting"
+        [ testGroup "sort"
+            [ testProperty "sorts the vector" $ \v -> toList (V.sort v) === sort (toList v)
+            ]
+        , testGroup "sortBy"
+            [ testProperty "satisfies `sortBy compare = sort`" $ \v -> V.sortBy compare v === V.sort v
+            , testProperty "is stable" $ \v -> let cmp _ _ = EQ in V.sortBy cmp v === v
+            ]
+        , testGroup "sortOn"
+            [ testProperty "sorts the vector" $ \v -> toList (V.sortOn Down v) === sortOn Down (toList v)
+            , testProperty "satisfies `sortOn f = sortBy (comparing f)`" $ \v -> V.sortOn Down v === V.sortBy (comparing Down) v
+            , testProperty "is stable" $ \v -> let f _ = () in V.sortOn f v === v
+            ]
+        , testGroup "unstableSort"
+            [ testProperty "sorts the vector" $ \v -> toList (V.unstableSort v) === sort (toList v)
+            ]
+        , testGroup "unstableSortBy"
+            [ testProperty "satisfies `unstableSortBy compare = unstableSort`" $ \v -> V.unstableSortBy compare v === V.unstableSort v
+            ]
+        , testGroup "unstableSortOn"
+            [ testProperty "sorts the vector" $ \v -> toList (V.unstableSortOn id v) === sortOn id (toList v)
+            , testProperty "satisfies `unstableSortOn f = unstableSortBy (comparing f)`" $ \v -> V.unstableSortOn Down v === V.unstableSortBy (comparing Down) v
+            ]
         ]
     , instances
     , laws

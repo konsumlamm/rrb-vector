@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
@@ -14,6 +13,7 @@
 module Data.RRBVector.Internal.Array
     ( Array, MutableArray
     , ifoldrStep, ifoldlStep, ifoldrStep', ifoldlStep'
+    , ifoldrMap1Step
     , empty, singleton, from2, wrap
     , replicate, replicateSnoc
     , index, head, last
@@ -36,6 +36,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.ST
 import Data.Foldable (Foldable(..))
+import Data.Foldable1 (Foldable1(foldrMap1))
 import Data.Primitive.SmallArray
 import Prelude hiding (replicate, take, drop, splitAt, head, last, map, traverse, read, unzip, (++))
 
@@ -74,6 +75,14 @@ instance Foldable Array where
 
     length (Array _ len _) = len
 
+instance Foldable1 Array where
+    foldrMap1 f g (Array start len arr) =
+        let end = start + len
+            go i
+                | i == end - 1, (# x #) <- indexSmallArray## arr i = f x
+                | (# x #) <- indexSmallArray## arr i = g x (go (i + 1))
+        in go start
+
 instance (NFData a) => NFData (Array a) where
     rnf = foldl' (\_ x -> rnf x) ()
 
@@ -106,6 +115,14 @@ ifoldlStep' i0 step f z (Array start len arr) =
             | i == end = acc
             | (# x #) <- indexSmallArray## arr i = go (i + 1) (j + step x) (f j acc x)
     in go start i0 z
+
+ifoldrMap1Step :: Int -> (a -> Int) -> (Int -> a -> b) -> (b -> b -> b) -> Array a -> b
+ifoldrMap1Step i0 step f g (Array start len arr) =
+    let end = start + len
+        go !i !j -- i is the index in arr, j is the index for f
+            | i == end - 1, (# x #) <- indexSmallArray## arr i = f j x
+            | (# x #) <- indexSmallArray## arr i = g (f j x) (go (i + 1) (j + step x))
+    in go start i0
 
 uninitialized :: a
 uninitialized = errorWithoutStackTrace "uninitialized"

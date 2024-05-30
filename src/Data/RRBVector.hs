@@ -44,6 +44,9 @@ module Data.RRBVector
     , map, map', reverse
     -- * Zipping and unzipping
     , zip, zipWith, unzip, unzipWith
+    -- * Sorting
+    , sort, sortBy, sortOn
+    , unstableSort, unstableSortBy, unstableSortOn
     ) where
 
 import Prelude hiding (replicate, lookup, take, drop, splitAt, map, reverse, zip, zipWith, unzip)
@@ -53,3 +56,4 @@ import Data.Functor.WithIndex
 import Data.Traversable.WithIndex
 
 import Data.RRBVector.Internal
+import Data.RRBVector.Internal.Sorting
