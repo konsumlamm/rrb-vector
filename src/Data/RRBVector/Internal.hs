@@ -343,7 +343,7 @@ instance Applicative Vector where
     pure = singleton
     fs <*> xs = foldl' (\acc f -> acc >< map f xs) empty fs
     liftA2 f xs ys = foldl' (\acc x -> acc >< map (f x) ys) empty xs
-    xs *> ys = foldl' (\acc _ -> acc >< ys) empty xs
+    xs *> ys = stimes (length xs) ys
     xs <* ys = foldl' (\acc x -> acc >< replicate (length ys) x) empty xs
 
 instance Monad Vector where
