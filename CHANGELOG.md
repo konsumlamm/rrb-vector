@@ -1,3 +1,7 @@
+# 0.2.2.0 - upcoming
+
+* Add `sort`, `sortBy`, `sortOn` ([#23](https://github.com/konsumlamm/rrb-vector/pull/22))
+
 # 0.2.1.0 - December 2023
 
 * Add `findIndexL`, `findIndexR`, `findIndicesL`, `findIndicesR`
