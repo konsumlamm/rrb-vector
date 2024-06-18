@@ -255,7 +255,7 @@ laws = testGroup "typeclass laws"
     , testLaws $ isListLaws proxyVInt
     , testLaws $ monoidLaws proxyVInt
     , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ semigroupLaws proxyVInt
-    , localOption (QuickCheckMaxSize 500) . testLaws $ showLaws proxyVInt
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 500) . testLaws $ showLaws proxyVInt
     , localOption (QuickCheckMaxSize 1000) . testLaws $ showReadLaws proxyVInt
     , testLaws $ alternativeLaws proxyV
     , localOption (QuickCheckTests 100) . localOption (QuickCheckMaxSize 100) . testLaws $ applicativeLaws proxyV
