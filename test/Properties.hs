@@ -10,7 +10,8 @@ module Properties
 import Control.Applicative (liftA2)
 #endif
 import Data.Foldable (Foldable(..))
-import Data.List (uncons)
+import Data.List (sort, sortBy, sortOn, uncons)
+import Data.Ord (comparing)
 import Data.Proxy (Proxy(..))
 import Prelude hiding ((==)) -- use @===@ instead
 
@@ -193,6 +194,11 @@ properties = testGroup "properties"
     , testGroup "unzip"
         [ testProperty "unzips the vector" $ \v -> (\(xs, ys) -> (toList xs, toList ys)) (V.unzip v) === unzip (toList v)
         , testProperty "valid" $ \v -> let (v1, v2) = V.unzip v in checkValid v1 .&&. checkValid v2
+        ]
+    , localOption (QuickCheckMaxSize 1000) $ testGroup "sorting"
+        [ testProperty "sort" $ \v -> toList (V.sort v) === sort (toList v)
+        , testProperty "sortBy" $ \v -> let cmp = comparing fst in toList (V.sortBy cmp v) === sortBy cmp (toList v)
+        , testProperty "sortOn" $ \v -> let f = odd in toList (V.sortOn f v) === sortOn f (toList v)
         ]
     , instances
     , laws
