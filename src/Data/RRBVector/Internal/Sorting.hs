@@ -21,12 +21,18 @@ uninitialized = errorWithoutStackTrace "uninitialized"
 -- | \(O(n \log n)\). Sort the vector in ascending order.
 -- The sort is stable, meaning the order of equal elements is preserved.
 --
+-- >>> sort (fromList [3, 1, 2])
+-- fromList [1,2,3]
+--
 -- @since 0.2.2.0
 sort :: (Ord a) => Vector a -> Vector a
 sort = sortBy compare
 
 -- | \(O(n \log n)\). Sort the vector in ascending order according to the specified comparison function.
 -- The sort is stable, meaning the order of equal elements is preserved.
+--
+-- >>> sortBy compare (fromList [3, 1, 2])
+-- fromList [1,2,3]
 --
 -- @since 0.2.2.0
 sortBy :: (a -> a -> Ordering) -> Vector a -> Vector a
@@ -39,6 +45,10 @@ sortBy cmp v =
 -- | \(O(n \log n)\). Sort the vector in ascending order by comparing the results of applying the key function to each element.
 -- The sort is stable, meaning the order of equal elements is preserved.
 -- @`sortOn` f@ is equivalent to @`sortBy` (`Data.Ord.comparing` f)@, but only evaluates @f@ once for each element.
+--
+-- >>> import Data.Ord (Down(..))
+-- >>> sortOn Down (fromList [3, 1, 2])
+-- fromList [3,2,1]
 --
 -- @since 0.2.2.0
 sortOn :: (Ord b) => (a -> b) -> Vector a -> Vector a

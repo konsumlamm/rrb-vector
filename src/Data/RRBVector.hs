@@ -46,7 +46,8 @@ module Data.RRBVector
     , zip, zipWith, unzip, unzipWith
     -- * Sorting
     --
-    -- | Currently implemented using [samsort](https://hackage.haskell.org/package/samsort).
+    -- | The sorting functions are currently implemented using the
+    -- [samsort](https://hackage.haskell.org/package/samsort) library.
     , sort, sortBy, sortOn
     ) where
 

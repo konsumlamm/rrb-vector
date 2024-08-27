@@ -1,6 +1,6 @@
 # 0.2.2.1 - July 2024
 
-* Add `sort`, `sortBy`, `sortOn` ([#23](https://github.com/konsumlamm/rrb-vector/pull/22))
+* Add `sort`, `sortBy`, `sortOn` ([#23](https://github.com/konsumlamm/rrb-vector/pull/23))
 * Fix bug in `><` ([#19](https://github.com/konsumlamm/rrb-vector/pull/19))
 * Fix bug in `<|` ([#18](https://github.com/konsumlamm/rrb-vector/pull/18))
 

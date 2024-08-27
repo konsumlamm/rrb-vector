@@ -90,15 +90,19 @@ data Vector a
         !Shift -- shift (blockShift * height)
         !(Tree a)
 
--- The number of bits used per level.
+-- | The number of bits used per level.
 blockShift :: Shift
 blockShift = 4
 
--- The maximum size of a block.
+-- | The maximum size of a block.
+--
+-- > blockSize = 2 ^ blockShift
 blockSize :: Int
 blockSize = 1 `unsafeShiftL` blockShift
 
--- The mask used to extract the index into the array.
+-- | The mask used to extract the index into the array.
+--
+-- > blockMask = blockSize - 1
 blockMask :: Int
 blockMask = blockSize - 1
 
@@ -143,7 +147,7 @@ treeSize = go 0
         in go (acc + i * (1 `unsafeShiftL` sh)) (down sh) (A.index arr i)
 {-# INLINE treeSize #-}
 
--- @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
+-- | @computeSizes sh@ turns an array into a tree node by computing the sizes of its subtrees.
 -- @sh@ is the shift of the resulting tree.
 computeSizes :: Shift -> A.Array (Tree a) -> Tree a
 computeSizes !sh arr
@@ -555,10 +559,16 @@ reverse v
 
 -- | \(O(\min(n_1, n_2))\). Take two vectors and return a vector of corresponding pairs.
 -- If one input is longer, excess elements are discarded from the right end.
+--
+-- >>> zip (fromList [1, 2, 3]) (fromList ['a', 'b'])
+-- fromList [(1,'a'),(2,'b')]
 zip :: Vector a -> Vector b -> Vector (a, b)
 zip v1 v2 = fromList $ List.zip (toList v1) (toList v2)
 
 -- | \(O(\min(n_1, n_2))\). 'zipWith' generalizes 'zip' by zipping with the function.
+--
+-- >>> zipWith (++) (fromList ["a", "b", "c"]) (fromList ["d", "e"])
+-- fromList ["ad","be"]
 zipWith :: (a -> b -> c) -> Vector a -> Vector b -> Vector c
 zipWith f v1 v2 = fromList $ List.zipWith f (toList v1) (toList v2)
 
