@@ -22,7 +22,7 @@ module Data.RRBVector.Internal
     , (!?), (!)
     , update
     , adjust, adjust'
-    , take, drop, splitAt
+    , take, drop, splitAt, slice
     , insertAt, deleteAt
     , findIndexL, findIndexR, findIndicesL, findIndicesR
     -- * Transformations
@@ -622,6 +622,16 @@ viewr v@(Root size _ tree) = let !init = take (size - 1) v in Just (init, lastTr
 
 -- | \(O(\log n)\). The first @i@ elements of the vector.
 -- If @i@ is negative, the empty vector is returned. If the vector contains less than @i@ elements, the whole vector is returned.
+--
+-- ==== __Examples__
+--
+-- >>> v = fromList [1, 2, 3]
+-- >>> take (-1) v
+-- fromList []
+-- >>> take 2 v
+-- fromList [1,2]
+-- >>> take 4 v
+-- fromList [1,2,3]
 take :: Int -> Vector a -> Vector a
 take !_ Empty = Empty
 take n v@(Root size sh tree)
@@ -631,6 +641,16 @@ take n v@(Root size sh tree)
 
 -- | \(O(\log n)\). The vector without the first @i@ elements.
 -- If @i@ is negative, the whole vector is returned. If the vector contains less than @i@ elements, the empty vector is returned.
+--
+-- ==== __Examples__
+--
+-- >>> v = fromList [1, 2, 3]
+-- >>> drop (-1) v
+-- fromList [1,2,3]
+-- >>> drop 2 v
+-- fromList [3]
+-- >>> drop 4 v
+-- fromList []
 drop :: Int -> Vector a -> Vector a
 drop !_ Empty = Empty
 drop n v@(Root size sh tree)
@@ -650,6 +670,16 @@ splitAt n v@(Root size sh tree)
         let !left = normalize $ Root n sh (takeTree (n - 1) sh tree)
             !right = normalize $ Root (size - n) sh (dropTree n sh tree)
         in (left, right)
+
+-- | \(O(\log n)\). Slice the vector between the given bounds. Both indices are inclusive.
+--
+-- ==== __Examples__
+--
+-- >>> v = fromList [1, 2, 3, 4, 5]
+-- >>> slice (1, 3) v
+-- fromList [2,3,4]
+slice :: (Int, Int) -> Vector a -> Vector a
+slice (i, j) = drop i . take (j + 1)
 
 -- | \(O(\log n)\). Insert an element at the given index, shifting the rest of the vector over.
 -- If the index is negative, add the element to the left end of the vector.
