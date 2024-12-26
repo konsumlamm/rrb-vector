@@ -1,3 +1,7 @@
+# TODO
+
+* Add `slice` ([#25](https://github.com/konsumlamm/rrb-vector/pull/25))
+
 # 0.2.2.1 - July 2024
 
 * Add `sort`, `sortBy`, `sortOn` ([#23](https://github.com/konsumlamm/rrb-vector/pull/23))
