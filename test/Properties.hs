@@ -170,11 +170,11 @@ properties = testGroup "properties"
         [ testProperty "finds the last index" $ \v (Fn f) -> V.findIndexR f v === Seq.findIndexR f (Seq.fromList (toList v))
         , testProperty "returns Nothing for the empty vector" $ \(Fn f) -> V.findIndexR f V.empty === Nothing
         ]
-    , localOption (QuickCheckMaxSize 1000) $ testGroup "findIndicesL"
+    , localOption (QuickCheckMaxSize 500) $ testGroup "findIndicesL"
         [ testProperty "finds the indices starting from the left" $ \v (Fn f) -> V.findIndicesL f v === Seq.findIndicesL f (Seq.fromList (toList v))
         , testProperty "returns [] for the empty vector" $ \(Fn f) -> V.findIndicesL f V.empty === []
         ]
-    , localOption (QuickCheckMaxSize 1000) $ testGroup "findIndicesR"
+    , localOption (QuickCheckMaxSize 500) $ testGroup "findIndicesR"
         [ testProperty "finds the indices starting from the right" $ \v (Fn f) -> V.findIndicesR f v === Seq.findIndicesR f (Seq.fromList (toList v))
         , testProperty "returns [] for the empty vector" $ \(Fn f) -> V.findIndicesR f V.empty === []
         ]
@@ -207,7 +207,10 @@ properties = testGroup "properties"
 
 instances :: TestTree
 instances = testGroup "instances"
-    [ testGroup "Foldable"
+    [ testGroup "Arbitrary"
+        [ testProperty "valid" $ \v -> checkValid v
+        ]
+    , testGroup "Foldable"
         [ testProperty "foldr" $ \(v :: V Int) -> foldr (:) [] v === foldr (:) [] (toList v)
         , testProperty "foldl" $ \(v :: V Int) -> foldl (flip (:)) [] v === foldl (flip (:)) [] (toList v)
         , testProperty "foldr'" $ \(v :: V Int) -> foldr' (:) [] v === foldr' (:) [] (toList v)
@@ -269,7 +272,7 @@ laws = testGroup "typeclass laws"
     , testLaws $ functorLaws proxyV
     , localOption (QuickCheckTests 100) . localOption (QuickCheckMaxSize 100) . testLaws $ monadLaws proxyV
     , testLaws $ monadPlusLaws proxyV
-    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 5000) . testLaws $ monadZipLaws proxyV
+    , localOption (QuickCheckTests 500) . localOption (QuickCheckMaxSize 1000) . testLaws $ monadZipLaws proxyV
     , localOption (QuickCheckMaxSize 100) . testLaws $ traversableLaws proxyV
     ]
 

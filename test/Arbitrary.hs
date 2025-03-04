@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Arbitrary where
+module Arbitrary () where
 
 #if !(MIN_VERSION_base(4,18,0))
 import Control.Applicative (liftA2)
@@ -13,20 +13,22 @@ import Test.Tasty.QuickCheck
 import qualified Data.RRBVector as V
 import Data.RRBVector.Internal.Debug
 
-builders :: [[a] -> V.Vector a]
-builders = [V.fromList, fromListUnbalanced]
+shrinkOne :: (a -> [a]) -> V.Vector a -> [V.Vector a]
+shrinkOne shr v = [V.update i x v | i <- [0 .. length v - 1], x <- shr (v V.! i)]
 
 instance (Arbitrary a) => Arbitrary (V.Vector a) where
     arbitrary = arbitrary1
     shrink = shrink1
 
--- TODO: improve instance
 instance Arbitrary1 V.Vector where
     liftArbitrary gen = do
-        build <- elements builders
-        fmap build (liftArbitrary gen)
+        xs <- listOf gen
+        sizes <- infiniteListOf $ chooseInt (2, blockSize)
+        pure $ fromListWithSizes xs sizes
 
-    liftShrink shr = concatMap (sequence builders) . liftShrink shr . toList
+    liftShrink shr v = case subtrees v of
+        [] -> map V.fromList . liftShrink shr $ toList v
+        ts -> ts ++ shrinkOne shr v
 
 -- A custom 'Testable' instance to use 'showTree'.
 instance {-# OVERLAPPING #-} (Arbitrary a, Show a, Testable prop) => Testable (V.Vector a -> prop) where

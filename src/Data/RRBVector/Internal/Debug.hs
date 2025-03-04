@@ -7,6 +7,9 @@ This module contains some debug utilities. It should only be used for debugging/
 module Data.RRBVector.Internal.Debug
     ( showTree
     , fromListUnbalanced
+    , fromListWithSizes
+    , subtrees
+    , blockSize
     , pattern Empty, pattern Root
     , Tree, Shift
     , pattern Balanced, pattern Unbalanced, pattern Leaf
@@ -69,6 +72,52 @@ fromListUnbalanced ls = case nodes RRB.Leaf ls of
     iterateNodes sh trees = case nodes (computeSizes sh) trees of
         [tree] -> RRB.Root (treeSize sh tree) sh tree
         trees' -> iterateNodes (up sh) trees'
+
+-- | \(O(n)\). Create a new vector from a list and an infinite list of node sizes.
+-- This is used for the @Arbitrary Vector@ instance.
+--
+-- Note that it is not possbible to create an invalid 'Vector' with this function.
+fromListWithSizes :: [a] -> [Int] -> Vector a
+fromListWithSizes [] _ = RRB.Empty
+fromListWithSizes [x] _ = singleton x
+fromListWithSizes ls sizes = case nodes RRB.Leaf ls sizes of
+    ([tree], _) -> RRB.Root (treeSize 0 tree) 0 tree -- tree is a single leaf
+    (ls', sizes') -> iterateNodes blockShift ls' sizes'
+  where
+    nodes f trees sizes = runST $ do
+        buffer <- Buffer.new blockSize
+        let loop [] (_ : ns) = do
+                result <- Buffer.get buffer
+                pure ([f result], ns)
+            loop (t : ts) (n : ns) = do
+                size <- Buffer.size buffer
+                if size == n then do
+                    result <- Buffer.get buffer
+                    Buffer.push buffer t
+                    (rest, ns') <- loop ts ns
+                    pure (f result : rest, ns')
+                else do
+                    Buffer.push buffer t
+                    loop ts (n : ns)
+            loop ts [] = loop ts (repeat blockSize)
+        loop trees sizes
+    {-# INLINE nodes #-}
+
+    iterateNodes sh trees sizes = case nodes (computeSizes sh) trees sizes of
+        ([tree], _) -> RRB.Root (treeSize sh tree) sh tree
+        (trees', sizes') -> iterateNodes (up sh) trees' sizes'
+
+-- | The subtrees of a vector.
+-- This is used for shrinking in the @Arbitrary Vector@ instance.
+subtrees :: Vector a -> [Vector a]
+subtrees Empty = []
+subtrees (Root _ sh tree) = case tree of
+    Balanced arr -> fmap subRoot (toList arr)
+    Unbalanced arr _ -> fmap subRoot (toList arr)
+    Leaf _ -> []
+  where
+    subSh = down sh
+    subRoot t = RRB.Root (treeSize subSh t) subSh t
 
 pattern Empty :: Vector a
 pattern Empty <- RRB.Empty
