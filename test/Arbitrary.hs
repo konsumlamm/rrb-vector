@@ -21,10 +21,13 @@ instance (Arbitrary a) => Arbitrary (V.Vector a) where
     shrink = shrink1
 
 instance Arbitrary1 V.Vector where
-    liftArbitrary gen = do
-        xs <- listOf gen
-        sizes <- infiniteListOf $ chooseInt (2, blockSize)
-        pure $ fromListWithSizes xs sizes
+    liftArbitrary gen = oneof
+        [ V.fromList <$> listOf gen
+        , do
+            xs <- listOf gen
+            sizes <- infiniteListOf $ chooseInt (2, blockSize)
+            pure $ fromListWithSizes xs sizes
+        ]
 
     liftShrink shr v = case subtrees v of
         [] -> map V.fromList . liftShrink shr $ toList v
